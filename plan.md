@@ -493,32 +493,32 @@ type ChatMessage =
 > 마일스톤별 세부 체크. 작업 시작 시 해당 섹션을 활성화하여 사용.
 
 ### M0. 합의 / 준비
-- [x] plan.md 시니어 sign-off
-- [x] [backend-mvp.md](backend-mvp.md) 주니어 sign-off
-- [x] [ai-frontend.md](ai-frontend.md) / [ai-backend.md](ai-backend.md) sign-off
+- [ ] plan.md 시니어 sign-off
+- [ ] [backend-mvp.md](backend-mvp.md) 주니어 sign-off
+- [ ] [ai-frontend.md](ai-frontend.md) / [ai-backend.md](ai-backend.md) sign-off
 - [ ] §4 API 계약 fixture JSON 합의 (mock 데이터)
-- [x] `frontend/` 디렉토리 위치 합의
+- [ ] `frontend/` 디렉토리 위치 합의
 
 ### M1. FE 부트스트랩
-- [x] `frontend/` 디렉토리 생성
-- [x] Vite + React + TS 프로젝트 초기화
-- [x] Tailwind 설정
-- [x] 기본 폴더 구조 생성 (§6.2)
-- [x] `.env` 템플릿 (`VITE_API_BASE_URL`)
+- [ ] `frontend/` 디렉토리 생성
+- [ ] Vite + React + TS 프로젝트 초기화
+- [ ] Tailwind 설정
+- [ ] 기본 폴더 구조 생성 (§6.2)
+- [ ] `.env` 템플릿 (`VITE_API_BASE_URL`)
 - [ ] `App.tsx` 풀스크린 챗봇 빈 화면 (환영 메시지만)
-- [x] CI 빌드 통과 확인
+- [ ] CI 빌드 통과 확인
 
 ### M2. Mock 기반 FE 단독 구동 (FE 작업)
-- [x] `useChat` 훅: 세션 + 메시지 누적
-- [x] `ChatScreen` + `MessageList` + `MessageBubble`
-- [x] `QuickReplyChips` 컴포넌트 (자본금/거래 유형)
-- [x] `messageRenderer` (BotMessage → 컴포넌트 매핑)
-- [x] mock `/chat` 응답 fixture (`mocks/chat.v0.json`)
+- [ ] `useChat` 훅: 세션 + 메시지 누적
+- [ ] `ChatScreen` + `MessageList` + `MessageBubble`
+- [ ] `QuickReplyChips` 컴포넌트 (자본금/거래 유형)
+- [ ] `messageRenderer` (BotMessage → 컴포넌트 매핑)
+- [ ] mock `/chat` 응답 fixture (`mocks/chat.v0.json`)
   - [ ] 첫 호출 → 환영 메시지 2줄 + 자본금 질문 + 칩 4개
   - [ ] 자본금 답 → 거래 유형 질문 + 칩 2개
   - [ ] 거래 유형 답 → "잠시만요..." + 결과 텍스트 + `[다시 추천]` 칩
-  - [x] 빈 결과 응답
-- [x] 2질문 wizard 흐름 E2E 수동 확인
+  - [ ] 빈 결과 응답
+- [ ] 2질문 wizard 흐름 E2E 수동 확인
 - [ ] 자유 입력창은 v0에서 비활성/비표시
 
 ### M3. BE 부트스트랩 (BE 작업)
@@ -531,12 +531,12 @@ type ChatMessage =
 > 체크리스트는 [ai-backend.md](ai-backend.md) / [backend-mvp.md](backend-mvp.md) 참고.
 
 ### M6. FE ↔ AI 서버 통합
-- [x] FE `api/client.ts` 작성 (base URL = AI 서버)
-- [x] `api/chat.ts`: `POST /chat` 함수
-- [x] `useChat`을 mock에서 실제 호출로 전환
-- [x] CORS 동작 확인 (AI 서버 책임)
+- [ ] FE `api/client.ts` 작성 (base URL = AI 서버)
+- [ ] `api/chat.ts`: `POST /chat` 함수
+- [ ] `useChat`을 mock에서 실제 호출로 전환
+- [ ] CORS 동작 확인 (AI 서버 책임)
 - [ ] E2E 시나리오: 정상 / 빈 결과 / 에러
-- [x] 페이지 로드 시 자동 첫 호출 → 환영 메시지 도착 확인
+- [ ] 페이지 로드 시 자동 첫 호출 → 환영 메시지 도착 확인
 
 ### M7. QA & 반응형
 - [ ] 모바일 (<768px) 풀스크린 챗봇 정상
