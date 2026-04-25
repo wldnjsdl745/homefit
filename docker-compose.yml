@@ -7,11 +7,30 @@ services:
       - "5173:5173"
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
-      VITE_USE_MOCK_CHAT: ${VITE_USE_MOCK_CHAT:-true}
+      VITE_USE_MOCK_CHAT: ${VITE_USE_MOCK_CHAT:-false}
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
     command: npm run dev -- --host 0.0.0.0
+    depends_on:
+      - ai-server
+
+  ai-server:
+    build:
+      context: ./ai-server
+    ports:
+      - "8000:8000"
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
+      AI_BACKEND_MODE: ${AI_BACKEND_MODE:-mock}
+      AI_DUMMY_FAIL: ${AI_DUMMY_FAIL:-false}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173}
+      PYTHONPATH: /app
+    volumes:
+      - ./ai-server/app:/app/app
+      - ./ai-server/tests:/app/tests
+    command: uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload
 
 volumes:
   frontend_node_modules:

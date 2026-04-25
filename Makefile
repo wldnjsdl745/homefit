@@ -1,4 +1,5 @@
 FRONTEND_DIR := frontend
+AI_DIR := ai-server
 NPM := npm --prefix $(FRONTEND_DIR)
 COMPOSE := docker compose
 
@@ -21,6 +22,9 @@ help:
 	@printf "  make docker-frontend-lint Run frontend lint in Docker\n"
 	@printf "  make docker-frontend-build Build frontend app in Docker\n"
 	@printf "  make docker-frontend-check Run Docker lint, tests, and build\n"
+	@printf "  make docker-ai-test    Run AI server tests in Docker\n"
+	@printf "  make docker-ai-lint    Run AI server lint in Docker\n"
+	@printf "  make docker-ai-check   Run AI server lint and tests in Docker\n"
 
 .PHONY: frontend-install
 frontend-install:
@@ -51,7 +55,7 @@ frontend-check: frontend-lint frontend-test frontend-build
 
 .PHONY: docker-build
 docker-build:
-	$(COMPOSE) build frontend
+	$(COMPOSE) build frontend ai-server
 
 .PHONY: docker-frontend-install
 docker-frontend-install:
@@ -59,11 +63,11 @@ docker-frontend-install:
 
 .PHONY: docker-up
 docker-up:
-	$(COMPOSE) up frontend
+	$(COMPOSE) up frontend ai-server
 
 .PHONY: docker-up-detached
 docker-up-detached:
-	$(COMPOSE) up -d frontend
+	$(COMPOSE) up -d frontend ai-server
 
 .PHONY: docker-down
 docker-down:
@@ -83,3 +87,14 @@ docker-frontend-build:
 
 .PHONY: docker-frontend-check
 docker-frontend-check: docker-frontend-lint docker-frontend-test docker-frontend-build
+
+.PHONY: docker-ai-test
+docker-ai-test:
+	$(COMPOSE) run --rm ai-server pytest
+
+.PHONY: docker-ai-lint
+docker-ai-lint:
+	$(COMPOSE) run --rm ai-server ruff check app tests
+
+.PHONY: docker-ai-check
+docker-ai-check: docker-ai-lint docker-ai-test
