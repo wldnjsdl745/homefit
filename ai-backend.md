@@ -50,76 +50,78 @@ homefit/
 ## 구현 체크리스트
 
 ### A0. 부트스트랩
-- [ ] `ai-server/` 디렉토리 생성
-- [ ] `pyproject.toml` 또는 `requirements.txt`
-- [ ] `app/main.py` FastAPI 앱
-- [ ] Dockerfile
-- [ ] `.env.example`
+- [x] `ai-server/` 디렉토리 생성
+- [x] `pyproject.toml` 또는 `requirements.txt`
+- [x] `app/main.py` FastAPI 앱
+- [x] Dockerfile
+- [x] `.env.example`
 
 ### A1. 입출력 스키마 (Pydantic)
-- [ ] `ChatRequest` (`session_id`, `raw`)
-- [ ] `ChatResponse` (`session_id`, `state`, `bot_messages`)
-- [ ] `BotMessage` 유니온 (text / quick_replies)
-- [ ] `Conditions` (`budget_max`, `deal_type`)
+- [x] `ChatRequest` (`session_id`, `raw`)
+- [x] `ChatResponse` (`session_id`, `state`, `bot_messages`)
+- [x] `BotMessage` 유니온 (text / quick_replies)
+- [x] `Conditions` (`budget_max`, `deal_type`)
 
 ### A2. CORS
-- [ ] FE 도메인 허용 (개발: `http://localhost:5173`)
+- [x] FE 도메인 허용 (개발: `http://localhost:5173`)
 - [ ] 운영 도메인 추가는 배포 시점
 
 ### A3. `POST /chat` 엔드포인트 (FE-facing)
-- [ ] 첫 호출 (session_id=null) → 새 세션 → 환영 + 자본금 질문
-- [ ] 자본금 받음 → 거래 유형 질문
-- [ ] 거래 유형 받음 → BE 호출 → 결과 텍스트
-- [ ] 인식 실패 → 재질문
-- [ ] BE 호출 실패 → fallback 응답
+- [x] 첫 호출 (session_id=null) → 새 세션 → 자본금 질문
+- [x] 자본금 받음 → 거래 유형 질문
+- [x] 거래 유형 받음 → BE 호출 → 결과 텍스트
+- [x] 예산 + 거래 유형을 한 요청으로 받아 결과 텍스트 반환
+- [x] 인식 실패 → 재질문
+- [x] BE 호출 실패 → fallback 응답
 
 ### A4. raw 머지 로직 (`MergeService`)
-- [ ] raw 키를 직전 conditions 위에 덮어쓰기
-- [ ] **MVP 동작**: 단순 dict merge
+- [x] raw 키를 직전 conditions 위에 덮어쓰기
+- [x] **MVP 동작**: 단순 dict merge
 - [ ] **Phase 2 확장**: `raw_message` 추가 시 LLM이 텍스트 → raw 추출 후 동일 머지
-- [ ] 단위 테스트
+- [x] 단위 테스트
 
 ### A5. raw 검증 가드
-- [ ] `budget_max`: 양수 정수, 상한 (예: 100억) 체크
-- [ ] `deal_type`: enum 외 거부 (`jeonse` / `monthly_rent`만 허용. `sale`은 v0 거부)
-- [ ] 위반 시 `bot.text("다시 알려주세요")` + 재질문 칩
+- [x] `budget_max`: 양수 정수, 상한 (예: 100억) 체크
+- [x] `deal_type`: enum 외 거부 (`jeonse` / `monthly_rent`만 허용. `sale`은 v0 거부)
+- [x] 위반 시 `bot.text("다시 알려주세요")`
 
 ### A6. BE 호출 (`BackendClient`)
-- [ ] httpx async 클라이언트
-- [ ] 환경변수 `BACKEND_URL` (예: `http://backend:8080`)
-- [ ] `POST /internal/upsert-conditions` (session 조회/생성 + 메시지 저장 + 머지된 conditions 저장)
-- [ ] `POST /internal/filter` (conditions → regions 리스트, 미저장)
-- [ ] 타임아웃 5초 / 재시도 1회
-- [ ] 실패 시 fallback 응답 반환
+- [x] httpx async 클라이언트
+- [x] 환경변수 `BACKEND_URL` (예: `http://backend:8080`)
+- [x] `POST /internal/upsert-conditions` (session 조회/생성 + 메시지 저장 + 머지된 conditions 저장)
+- [x] `POST /internal/filter` (conditions → regions 리스트, 미저장)
+- [x] 타임아웃 5초 / 재시도 1회
+- [x] 실패 시 fallback 응답 반환
+- [x] BE 미구현 상태를 위한 mock backend 모드
 
 ### A7. 다음 질문 결정 로직 (`DialogPolicy`)
-- [ ] conditions 충족 여부 판정
-  - [ ] `budget_max` 없음 → 자본금 질문
-  - [ ] `deal_type` 없음 → 거래 유형 질문
-  - [ ] 둘 다 있음 → BE 필터링 → 결과
-- [ ] 질문 순서: **자본금 → 거래 유형** 고정
-- [ ] 단위 테스트
+- [x] conditions 충족 여부 판정
+  - [x] `budget_max` 없음 → 자본금 질문
+  - [x] `deal_type` 없음 → 거래 유형 질문
+  - [x] 둘 다 있음 → BE 필터링 → 결과
+- [x] 질문 순서: **자본금 → 거래 유형** 고정
+- [x] 단위 테스트
 
 ### A8. 봇 메시지 빌더 (`MessageBuilder`)
-- [ ] 환영 메시지 (2줄 + 질문 + 칩)
-- [ ] Q2 메시지 (거래 유형 질문 + 칩)
-- [ ] 결과 메시지 (텍스트 템플릿 + `[다시 추천]` 칩)
-- [ ] 빈 결과 메시지
-- [ ] 인식 실패 메시지
-- [ ] Fallback 메시지
+- [x] 자본금 질문 메시지
+- [x] Q2 메시지 (거래 유형 질문)
+- [x] 결과 메시지 (텍스트 템플릿)
+- [x] 빈 결과 메시지
+- [x] 인식 실패 메시지
+- [x] Fallback 메시지
 
 ### A9. 결과 텍스트 템플릿 (`ResultFormatter`)
-- [ ] 템플릿: `"{deal_type 한글} {budget_max 한글} 예산에 맞는 지역은 {regions join '·'}입니다."`
-- [ ] `deal_type` 매핑: `jeonse` → "전세", `monthly_rent` → "월세"
-- [ ] `budget_max` 매핑:
-  - 0–9999만 → "{n}만원"
-  - 1억+ → "{n.n}억"
-- [ ] regions가 비어있으면 빈 결과 메시지 사용
+- [x] 템플릿: `"{deal_type 한글} {budget_max 한글} 예산에 맞는 지역은 {regions join '·'}입니다."`
+- [x] `deal_type` 매핑: `jeonse` → "전세", `monthly_rent` → "월세"
+- [x] `budget_max` 매핑:
+  - [x] 0–9999만 → "{n}만원"
+  - [x] 1억+ → "{n.n}억"
+- [x] regions가 비어있으면 빈 결과 메시지 사용
 - [ ] **Phase 2**: LLM이 자연스럽게 풀어 씀 + 추천 이유 추가
 
 ### A10. Fallback 정책
-- [ ] BE 호출 실패 → `bot.text("죄송해요, 다시 시도해주세요.")` + `[재시도]` 칩
-- [ ] 환경변수 `AI_DUMMY_FAIL=true` → 의도적 fallback (QA용)
+- [x] BE 호출 실패 → fallback 텍스트
+- [x] 환경변수 `AI_DUMMY_FAIL=true` → 의도적 fallback (QA용)
 - [ ] **Phase 2 LLM 도입 시**: LLM 응답 검증 5단계 추가
   - [ ] JSON 파싱
   - [ ] 스키마 검증
@@ -128,7 +130,7 @@ homefit/
   - [ ] 금칙어 가드
 
 ### A11. `GET /healthz`
-- [ ] 단순 200 OK
+- [x] 단순 200 OK
 
 ### A12. 로깅
 - [ ] 요청/응답 시간
@@ -136,17 +138,17 @@ homefit/
 - [ ] 개인정보 미포함 (raw 단순 dict 정도는 OK)
 
 ### A13. 단위 테스트 (pytest)
-- [ ] 첫 호출 → 환영 메시지
-- [ ] 자본금만 받음 → 거래 유형 질문
-- [ ] 둘 다 받음 → BE 호출 → 결과 텍스트
-- [ ] 잘못된 raw → 재질문
-- [ ] BE 실패 → fallback
-- [ ] `AI_DUMMY_FAIL=true` → fallback
+- [x] 첫 호출 → 자본금 질문
+- [x] 자본금만 받음 → 거래 유형 질문
+- [x] 둘 다 받음 → BE 호출 → 결과 텍스트
+- [x] 잘못된 raw → 재질문
+- [x] BE 실패 → fallback
+- [x] `AI_DUMMY_FAIL=true` → fallback
 
 ### A14. Docker
-- [ ] Dockerfile (Python 3.11 slim + FastAPI)
-- [ ] docker-compose에 `ai-server` 서비스 추가
-- [ ] BE와 같은 네트워크
+- [x] Dockerfile (Python 3.11 slim + FastAPI)
+- [x] docker-compose에 `ai-server` 서비스 추가
+- [x] BE와 같은 네트워크
 
 ---
 
@@ -168,12 +170,7 @@ homefit/
   "session_id": "uuid",
   "state": "asking",
   "bot_messages": [
-    { "type": "bot.text", "content": "전세/월세 중 어떤 걸 원하시는지 알려주세요." },
-    { "type": "bot.quick_replies", "chips": [
-        { "id": "deal_jeonse",       "label": "전세" },
-        { "id": "deal_monthly_rent", "label": "월세" }
-      ]
-    }
+    { "type": "bot.text", "content": "전세/월세 중 어떤 걸 원하시는지 알려주세요." }
   ]
 }
 ```
@@ -184,11 +181,8 @@ homefit/
   "session_id": "uuid",
   "state": "result",
   "bot_messages": [
-    { "type": "bot.text", "content": "전세 2억 예산에 맞는 지역은 분당·성남·경기도입니다." },
-    { "type": "bot.quick_replies", "chips": [
-        { "id": "restart", "label": "다시 추천" }
-      ]
-    }
+    { "type": "bot.text", "content": "잠시만요..." },
+    { "type": "bot.text", "content": "전세 2억 예산에 맞는 지역은 분당·성남·경기도입니다." }
   ]
 }
 ```
@@ -197,7 +191,7 @@ homefit/
 
 ```
 POST /internal/upsert-conditions
-{ session_id, raw, created_at }
+{ session_id, raw, conditions }
 → { session_id, conditions }   // 머지된 누적 conditions
 
 POST /internal/filter
@@ -212,6 +206,7 @@ POST /internal/filter
 | 키 | 값 | 의미 |
 |----|---|------|
 | `BACKEND_URL` | `http://backend:8080` | BE 내부 API base URL |
+| `AI_BACKEND_MODE` | `mock` (default) / `http` | BE 미구현 시 mock backend 사용 |
 | `AI_PROVIDER` | `dummy` (MVP) / `claude` / `local` (Phase 2) | LLM Provider |
 | `AI_DUMMY_FAIL` | `false` (default) / `true` | 강제 실패 (QA) |
 | `AI_TIMEOUT_MS` | `5000` | BE 호출 타임아웃 |

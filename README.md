@@ -60,3 +60,34 @@ make frontend-dev
 ```bash
 make frontend-check
 ```
+
+## AI Server
+
+AI 서버는 `ai-server/` 디렉터리에 있으며 FastAPI 기반입니다. MVP에서는 LLM을 호출하지 않고, mock backend 모드로 `/chat` 응답을 생성합니다.
+
+### Docker로 실행
+
+프론트와 AI 서버를 함께 실행합니다.
+
+```bash
+make docker-up-detached
+```
+
+AI 서버 헬스체크:
+
+```bash
+curl http://localhost:8000/healthz
+```
+
+### AI Server 검증
+
+```bash
+make docker-ai-check
+```
+
+개별 실행:
+
+```bash
+make docker-ai-lint
+make docker-ai-test
+```
