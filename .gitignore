@@ -1,2 +1,19 @@
 .DS_Store
 .idea/
+node_modules/
+dist/
+coverage/
+.vite/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Generated configs (from `tsc -b`)
+frontend/vite.config.d.ts
+frontend/vite.config.js
+frontend/vitest.config.d.ts
+frontend/vitest.config.js
+
+# Local env
+.env
+.env.local
