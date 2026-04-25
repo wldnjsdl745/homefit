@@ -3,28 +3,19 @@
 @tailwind utilities;
 
 :root {
-  color: #1a1d2e;
-  background: #f4ecd0;
+  color: #111111;
+  background: #fffffb;
   font-family:
-    "DotGothic16",
-    "Press Start 2P",
-    "Galmuri11",
-    "Neo둥근모",
-    monospace;
-  /* 픽셀 렌더링 */
-  -webkit-font-smoothing: none;
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-smooth: never;
-  text-rendering: optimizeSpeed;
-  letter-spacing: 0.02em;
+  text-rendering: optimizeLegibility;
+  letter-spacing: 0;
 }
 
 * {
   box-sizing: border-box;
-}
-
-img {
-  image-rendering: pixelated;
 }
 
 html,
@@ -43,32 +34,9 @@ textarea {
   font: inherit;
 }
 
-/* 픽셀 그라디언트 텍스트 (선택) */
-.pixel-shadow-text {
-  text-shadow: 2px 2px 0 #1a1d2e;
-}
-
-/* 칩/버튼 누르는 효과 */
-.btn-pixel {
-  transition: transform 80ms ease, box-shadow 80ms ease;
-}
-.btn-pixel:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0 #1a1d2e !important;
-}
-
-/* CRT/도트 배경 패턴 */
-.bg-dot-grid {
-  background-image: radial-gradient(circle at 1px 1px, rgba(26, 29, 46, 0.18) 1px, transparent 0);
-  background-size: 8px 8px;
-}
-
-.bg-scanlines {
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(26, 29, 46, 0.06) 0,
-    rgba(26, 29, 46, 0.06) 1px,
-    transparent 1px,
-    transparent 3px
-  );
+.bg-editorial-grid {
+  background-image:
+    linear-gradient(rgba(17, 17, 17, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 17, 17, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
 }

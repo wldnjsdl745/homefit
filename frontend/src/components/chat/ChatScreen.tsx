@@ -3,92 +3,47 @@ import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
 
 export function ChatScreen() {
-  const { messages, isWaiting, submitText, restart } = useChat();
+  const { messages, isWaiting, submitText } = useChat();
 
   return (
-    <main className="min-h-screen bg-cream font-pixel text-ink">
-      {/* 도트 그리드 배경 */}
-      <div className="pointer-events-none fixed inset-0 bg-dot-grid" />
-      {/* 스캔라인 (선택) */}
-      <div className="pointer-events-none fixed inset-0 bg-scanlines" />
+    <main className="min-h-screen bg-paper text-ink">
+      <div className="pointer-events-none fixed inset-0 bg-editorial-grid opacity-70" />
 
-      <header className="sticky top-0 z-10 border-b-[3px] border-ink bg-ink text-cream">
-        <div className="mx-auto flex h-20 max-w-[760px] items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            {/* 픽셀 아트 로고 (집 모양) */}
-            <div
-              className="flex size-12 items-center justify-center border-[3px] border-cream bg-coral"
-              aria-hidden="true"
-            >
-              <PixelHouse />
-            </div>
-            <div className="leading-none">
-              <span className="block text-xl tracking-widest">HOMEFIT</span>
-              <span className="mt-2 block text-[11px] text-mustard">
-                AI HOUSING CHAT
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => void restart()}
-            className="btn-pixel border-[3px] border-cream bg-mint px-3 py-2 text-xs text-ink shadow-pixel-sm transition hover:bg-mustard focus:outline-none focus:ring-2 focus:ring-mustard"
-            aria-label="새 대화"
-            title="새 대화"
-          >
-            ↻ 다시
-          </button>
+      <header className="relative z-10 border-b border-ink bg-paper">
+        <div className="mx-auto flex h-16 max-w-6xl items-center px-5">
+          <a className="text-[13px] font-semibold tracking-[0.32em]" href="/">
+            HOMEFIT
+          </a>
         </div>
       </header>
 
-      <section className="relative mx-auto flex min-h-[calc(100vh-5rem)] max-w-[760px] flex-col px-4">
-        <MessageList messages={messages} isWaiting={isWaiting} />
-        <ChatInput disabled={isWaiting} onSubmit={submitText} />
+      <section className="relative z-10 mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl grid-rows-[auto_1fr] px-5 py-7 sm:py-10">
+        <div className="border-b border-ink pb-7">
+          <div>
+            <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.22em] text-muted">
+              Ask Homefit anything
+            </p>
+            <h1 className="max-w-4xl text-[clamp(44px,10vw,112px)] font-black uppercase leading-[0.88] tracking-[-0.04em]">
+              Find your next neighborhood.
+            </h1>
+          </div>
+        </div>
+
+        <div className="mx-auto grid min-h-0 w-full max-w-3xl pt-6">
+          <div className="flex min-h-[560px] flex-col border border-neutral-300 bg-paper shadow-soft">
+            <div className="flex h-10 items-center justify-between border-b border-neutral-200 px-4">
+              <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-muted">Chat</span>
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
+                {isWaiting ? "Thinking" : "Ready"}
+              </span>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">
+              <MessageList messages={messages} isWaiting={isWaiting} />
+              <ChatInput disabled={isWaiting} onSubmit={submitText} />
+            </div>
+          </div>
+        </div>
       </section>
     </main>
-  );
-}
-
-/** 8x8 픽셀 아트 집 (SVG로 픽셀 그리드 표현) */
-function PixelHouse() {
-  // 1 = 본체(cream), 2 = 지붕(mustard), 3 = 문(ink)
-  const grid = [
-    [0, 0, 0, 2, 2, 0, 0, 0],
-    [0, 0, 2, 2, 2, 2, 0, 0],
-    [0, 2, 2, 2, 2, 2, 2, 0],
-    [2, 2, 2, 2, 2, 2, 2, 2],
-    [0, 1, 1, 1, 1, 1, 1, 0],
-    [0, 1, 1, 3, 3, 1, 1, 0],
-    [0, 1, 1, 3, 3, 1, 1, 0],
-    [0, 1, 1, 3, 3, 1, 1, 0],
-  ];
-  const colors: Record<number, string> = {
-    1: "#f4ecd0",
-    2: "#f9a826",
-    3: "#1a1d2e",
-  };
-  return (
-    <svg
-      viewBox="0 0 8 8"
-      width="28"
-      height="28"
-      shapeRendering="crispEdges"
-      aria-hidden="true"
-    >
-      {grid.map((row, y) =>
-        row.map((cell, x) =>
-          cell ? (
-            <rect
-              key={`${x}-${y}`}
-              x={x}
-              y={y}
-              width={1}
-              height={1}
-              fill={colors[cell]}
-            />
-          ) : null,
-        ),
-      )}
-    </svg>
   );
 }
