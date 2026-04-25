@@ -1,3 +1,8 @@
-spring:
+pring:
   application:
     name: backend
+  datasource:
+    url: "jdbc:mysql://localhost/homefit"
+           username: "root"
+           password: ${DB_PASSWORD}
+           driver-class-name: com.mysql.cj.jdbc.Driver
