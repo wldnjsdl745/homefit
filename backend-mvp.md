@@ -3,6 +3,7 @@
 > BE는 **AI 서버에서만 호출되는 내부 API**. FE에 직접 노출 ❌.
 > 책임: conditions 영속화 + DB 필터링 (계산).
 > AI 서버 측 호출자는 [ai-backend.md](ai-backend.md), 전체 설계는 [plan.md](plan.md).
+> 기준 ERD는 [docs/erd/ERD2.md](docs/erd/ERD2.md)로 고정한다.
 
 ---
 
@@ -33,7 +34,7 @@
 ## 데이터 모델 (단일 테이블 중심)
 
 > 단일 테이블 `chat_messages`에 raw + conditions JSON 저장.
-> ERD([docs/erd/ERD.md](docs/erd/ERD.md))는 우리 설계로 갱신 필요 (별도 PR).
+> 기준 ERD는 [docs/erd/ERD2.md](docs/erd/ERD2.md)와 [docs/schema/schema.sql](docs/schema/schema.sql)이다.
 
 ```
 chat_messages
@@ -57,9 +58,9 @@ housing_transactions  (MOLIT #11848613)
 ## 구현 체크리스트
 
 ### B0. 합의
-- [ ] [plan.md §4](plan.md) FE↔AI 계약 확인
-- [ ] [ai-backend.md](ai-backend.md) AI↔BE 내부 계약 확인
-- [ ] [docs/erd/ERD.md](docs/erd/ERD.md) 우리 설계로 갱신
+- [x] [plan.md §4](plan.md) FE↔AI 계약 확인
+- [x] [ai-backend.md](ai-backend.md) AI↔BE 내부 계약 확인
+- [x] 기준 ERD를 [docs/erd/ERD2.md](docs/erd/ERD2.md)로 확정
 
 ### B1. DB / Entity
 - [ ] `application.yaml` MySQL 설정
@@ -131,6 +132,10 @@ housing_transactions  (MOLIT #11848613)
 - [ ] 필터링: `deposit_amount ≤ budget_max` AND `deal_type = ?`
 - [ ] 정렬: 평균 거래가 오름차순 또는 거래 건수 내림차순 (BE 결정)
 - [ ] 상위 3개 시군구 반환
+
+> 월세 고도화:
+> - 현재 MVP 구현은 `deal_type`은 전세/월세를 구분해서 받되, 예산 필터는 `budget_max` 중심으로 시작한다.
+> - 월세 전용 조건(`monthly_rent_max`, `monthly_deposit_max`)은 JSON 스키마 확장 포인트로 열어두고 고도화 단계에서 반영한다.
 
 ### B6. 보안 / CORS
 - [ ] **FE 직접 호출 차단**: CORS 미허용 (또는 AI 서버 IP만 허용)
