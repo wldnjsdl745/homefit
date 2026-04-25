@@ -94,6 +94,8 @@ class MockBackendClient(BackendClient):
         return UpsertConditionsResponse(session_id=next_session_id, conditions=merged)
 
     async def filter_regions(self, conditions: Conditions) -> FilterRegionsResponse:
+        # Region recommendation stays a backend responsibility. preference_text is intentionally
+        # ignored by the mock filter until the real backend defines how to use it.
         if conditions.budget_max is not None and conditions.budget_max < 60_000_000:
             return FilterRegionsResponse(regions=[])
 

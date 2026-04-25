@@ -23,6 +23,11 @@ class FailingBackendClient(BackendClient):
         raise ValueError("backend failed")
 
 
+class StaticLlmProvider:
+    async def extract_conditions(self, raw_message: str) -> Conditions:
+        return Conditions(budget_max=200_000_000, deal_type="jeonse")
+
+
 @pytest.mark.asyncio
 async def test_chat_service_returns_fallback_when_backend_fails() -> None:
     service = ChatService(
@@ -47,3 +52,28 @@ async def test_chat_service_returns_fallback_when_dummy_fail_enabled() -> None:
 
     assert response.state == "asking"
     assert response.bot_messages[0].content == "잠시 문제가 있어요. 다시 입력해주세요."
+
+
+@pytest.mark.asyncio
+async def test_chat_service_uses_llm_provider_for_semantic_extraction() -> None:
+    from app.services.backend_client import MockBackendClient
+
+    service = ChatService(
+        backend_client=MockBackendClient(),
+        settings=Settings(AI_BACKEND_MODE="mock"),
+        llm_provider=StaticLlmProvider(),
+    )
+
+    response = await service.handle(
+        ChatRequest(
+            session_id=None,
+            raw=Conditions(preference_text="역 가까운 곳"),
+            raw_message="전세 2억으로 찾아줘",
+        )
+    )
+
+    assert response.state == "result"
+    assert (
+        response.bot_messages[-1].content
+        == "전세 2억 예산에 맞는 지역은 분당·성남·경기도입니다."
+    )

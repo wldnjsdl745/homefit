@@ -1,9 +1,11 @@
 import httpx
 
 from app.config import Settings
-from app.schemas import ChatRequest, ChatResponse
+from app.schemas import ChatRequest, ChatResponse, Conditions
 from app.services.backend_client import BackendClient
 from app.services.dialog_policy import DialogPolicy, DialogStep
+from app.services.llm_provider import DummyLlmProvider, LlmProvider
+from app.services.merge_service import MergeService
 from app.services.message_builder import MessageBuilder
 
 
@@ -14,21 +16,36 @@ class ChatService:
         settings: Settings,
         dialog_policy: DialogPolicy | None = None,
         message_builder: MessageBuilder | None = None,
+        llm_provider: LlmProvider | None = None,
+        merge_service: MergeService | None = None,
     ):
         self.backend_client = backend_client
         self.settings = settings
         self.dialog_policy = dialog_policy or DialogPolicy()
         self.message_builder = message_builder or MessageBuilder()
+        self.llm_provider = llm_provider or DummyLlmProvider()
+        self.merge_service = merge_service or MergeService()
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
         if self.settings.dummy_fail:
             return self._fallback(request.session_id)
 
         try:
+            raw = request.raw
+            if request.raw_message:
+                extracted = await self.llm_provider.extract_conditions(request.raw_message)
+                raw = self.merge_service.merge(raw, extracted)
+                if self._is_empty(raw):
+                    return ChatResponse(
+                        session_id=request.session_id or "unsupported",
+                        state="asking",
+                        bot_messages=self.message_builder.unsupported_conditions(),
+                    )
+
             upserted = await self.backend_client.upsert_conditions(
                 session_id=request.session_id,
-                raw=request.raw,
-                conditions=request.raw,
+                raw=raw,
+                conditions=raw,
             )
 
             step = self.dialog_policy.next_step(upserted.conditions)
@@ -47,6 +64,13 @@ class ChatService:
                     bot_messages=self.message_builder.ask_deal_type(),
                 )
 
+            if step == DialogStep.ASK_PREFERENCE:
+                return ChatResponse(
+                    session_id=upserted.session_id,
+                    state="asking",
+                    bot_messages=self.message_builder.ask_preference(),
+                )
+
             regions = await self.backend_client.filter_regions(upserted.conditions)
             return ChatResponse(
                 session_id=upserted.session_id,
@@ -62,3 +86,6 @@ class ChatService:
             state="asking",
             bot_messages=self.message_builder.fallback(),
         )
+
+    def _is_empty(self, conditions: Conditions) -> bool:
+        return not conditions.model_dump(exclude_none=True)

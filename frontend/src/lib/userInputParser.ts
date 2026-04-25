@@ -1,37 +1,42 @@
-import type { Conditions } from "../types/chat";
+import type { ChatRequest, Conditions } from "../types/chat";
+
+export type ParsedUserInput = Pick<ChatRequest, "raw" | "raw_message">;
 
 export class UserInputParser {
-  parse(current: Conditions, input: string): Conditions {
+  parse(current: Conditions, input: string): ParsedUserInput {
     const normalized = input.trim();
 
     if (!current.budget_max) {
-      return { budget_max: this.parseBudget(normalized) };
+      return this.parseBudgetTurn(normalized);
     }
 
     if (!current.deal_type) {
-      return { deal_type: this.parseDealType(normalized) };
+      return this.parseDealTypeTurn(normalized);
     }
 
-    return { budget_max: this.parseBudget(normalized) };
+    return {
+      raw: { preference_text: normalized },
+      raw_message: normalized,
+    };
   }
 
-  private parseBudget(input: string): number {
-    if (!/^\d+$/.test(input)) {
-      throw new Error("Budget input must be digits only.");
+  private parseBudgetTurn(input: string): ParsedUserInput {
+    if (/^\d+$/.test(input)) {
+      return { raw: { budget_max: Number(input) }, raw_message: input };
     }
 
-    return Number(input);
+    return { raw: {}, raw_message: input };
   }
 
-  private parseDealType(input: string): "jeonse" | "monthly_rent" {
+  private parseDealTypeTurn(input: string): ParsedUserInput {
     if (input === "전세") {
-      return "jeonse";
+      return { raw: { deal_type: "jeonse" }, raw_message: input };
     }
 
     if (input === "월세") {
-      return "monthly_rent";
+      return { raw: { deal_type: "monthly_rent" }, raw_message: input };
     }
 
-    throw new Error("Deal type input must be 전세 or 월세.");
+    return { raw: {}, raw_message: input };
   }
 }

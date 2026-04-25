@@ -17,13 +17,27 @@ class MessageBuilder:
             )
         ]
 
-    def result(self, conditions: Conditions, regions: list[str]) -> list[BotMessage]:
+    def ask_preference(self) -> list[BotMessage]:
+        return [
+            BotTextMessage(
+                type="bot.text",
+                content="추가로 희망하시는 조건이 있나요?",
+            )
+        ]
+
+    def result(
+        self,
+        conditions: Conditions,
+        regions: list[str],
+        result_text: str | None = None,
+    ) -> list[BotMessage]:
         if not regions:
             return self.empty_result()
 
+        content = result_text or self.formatter.format(conditions, regions)
         return [
             BotTextMessage(type="bot.text", content="잠시만요..."),
-            BotTextMessage(type="bot.text", content=self.formatter.format(conditions, regions)),
+            BotTextMessage(type="bot.text", content=content),
         ]
 
     def empty_result(self) -> list[BotMessage]:
@@ -36,3 +50,14 @@ class MessageBuilder:
 
     def fallback(self) -> list[BotMessage]:
         return [BotTextMessage(type="bot.text", content="잠시 문제가 있어요. 다시 입력해주세요.")]
+
+    def unsupported_conditions(self) -> list[BotMessage]:
+        return [
+            BotTextMessage(
+                type="bot.text",
+                content=(
+                    "죄송해요, 아직 해당 조건은 이해하지 못해요. "
+                    "예산과 전세/월세를 알려주세요."
+                ),
+            )
+        ]

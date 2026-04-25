@@ -21,9 +21,20 @@ describe("MockChatServer", () => {
       content: "전세/월세 중 어떤 걸 원하시는지 알려주세요.",
     });
 
-    const result = await server.handle({
+    const preferenceQuestion = await server.handle({
       session_id: welcome.session_id,
       raw: { deal_type: "jeonse" },
+    });
+    expect(preferenceQuestion.state).toBe("asking");
+    expect(preferenceQuestion.bot_messages[0]).toEqual({
+      type: "bot.text",
+      content: "추가로 희망하시는 조건이 있나요?",
+    });
+
+    const result = await server.handle({
+      session_id: welcome.session_id,
+      raw: { preference_text: "역 가까운 곳" },
+      raw_message: "역 가까운 곳",
     });
     expect(result.state).toBe("result");
     expect(JSON.stringify(result.bot_messages)).toContain("분당·성남·경기도");

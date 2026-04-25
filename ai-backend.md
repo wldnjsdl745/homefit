@@ -207,9 +207,14 @@ POST /internal/filter
 |----|---|------|
 | `BACKEND_URL` | `http://backend:8080` | BE 내부 API base URL |
 | `AI_BACKEND_MODE` | `mock` (default) / `http` | BE 미구현 시 mock backend 사용 |
-| `AI_PROVIDER` | `dummy` (MVP) / `claude` / `local` (Phase 2) | LLM Provider |
+| `AI_PROVIDER` | `dummy` (MVP) / `qwen` / `openai_compatible` | LLM Provider |
 | `AI_DUMMY_FAIL` | `false` (default) / `true` | 강제 실패 (QA) |
 | `AI_TIMEOUT_MS` | `5000` | BE 호출 타임아웃 |
+| `OPENAI_BASE_URL` | `http://llm-runtime:8000/v1` | OpenAI-compatible LLM runtime URL |
+| `OPENAI_API_KEY` | `EMPTY` | 로컬 런타임용 placeholder |
+| `OPENAI_MODEL` | `Qwen/Qwen3.5-2B` | Qwen post-trained 모델 |
+| `LLM_TIMEOUT_MS` | `15000` | LLM 호출 타임아웃 |
+| `LLM_PROMPT_STYLE` | `hermes` | Hermes 스타일 system prompt 사용 |
 | `AI_PORT` | `8000` | 서비스 포트 |
 | `CORS_ALLOW_ORIGINS` | `http://localhost:5173` | FE 도메인 |
 
@@ -220,6 +225,12 @@ POST /internal/filter
 - AI 서버 = stateless 오케스트레이터.
 - 세션/이력 = BE DB. AI는 매 호출마다 BE에서 conditions 받아옴.
 - LLM 미호출 (MVP). Provider 추상화는 그대로 유지 → Phase 2에 한 줄 교체.
+- Qwen 연동은 `AI_PROVIDER=qwen`으로 활성화한다.
+- Qwen/Hermes는 사용자 자연어를 `raw conditions`로 추출하는 데만 사용한다.
+- 현재 허용하는 conditions 키는 `budget_max`, `deal_type`, `preference_text`다.
+- 의미 추출 결과가 허용 키에 없거나 현재 단계에서 쓸 수 없으면 사과/재질문 메시지를 반환한다.
+- 지역 추천, 필터링, 정렬은 Backend 책임이다.
+- LLM 실패 시 의미 추출 없이 기존 구조화 `raw` 기반 흐름으로 fallback한다.
 
 ---
 

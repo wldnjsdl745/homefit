@@ -9,5 +9,15 @@ def test_dialog_policy_orders_budget_then_deal_type_then_result() -> None:
     assert policy.next_step(Conditions(budget_max=200_000_000)) == DialogStep.ASK_DEAL_TYPE
     assert (
         policy.next_step(Conditions(budget_max=200_000_000, deal_type=DealType.JEONSE))
+        == DialogStep.ASK_PREFERENCE
+    )
+    assert (
+        policy.next_step(
+            Conditions(
+                budget_max=200_000_000,
+                deal_type=DealType.JEONSE,
+                preference_text="역 가까운 곳",
+            )
+        )
         == DialogStep.RESULT
     )

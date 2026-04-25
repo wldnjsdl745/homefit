@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.schemas import BotTextMessage, ChatRequest, ChatResponse, HealthResponse
 from app.services.backend_client import HttpBackendClient, MockBackendClient
 from app.services.chat_service import ChatService
+from app.services.llm_provider import OpenAICompatibleLlmProvider, SafeLlmProvider
 
 
 def create_chat_service() -> ChatService:
@@ -19,7 +20,16 @@ def create_chat_service() -> ChatService:
         if settings.use_mock_backend
         else HttpBackendClient(base_url=settings.backend_url, timeout_ms=settings.timeout_ms)
     )
-    return ChatService(backend_client=backend_client, settings=settings)
+    llm_provider = (
+        SafeLlmProvider(OpenAICompatibleLlmProvider(settings))
+        if settings.use_llm_provider
+        else None
+    )
+    return ChatService(
+        backend_client=backend_client,
+        settings=settings,
+        llm_provider=llm_provider,
+    )
 
 
 @asynccontextmanager

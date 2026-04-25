@@ -14,7 +14,8 @@ export class MockChatServer {
 
     const sessionId = request.session_id ?? this.createSession();
     const session = this.sessions.get(sessionId) ?? { conditions: {} };
-    session.conditions = { ...session.conditions, ...request.raw };
+    const extracted = this.extractFromRawMessage(session.conditions, request.raw_message);
+    session.conditions = { ...session.conditions, ...request.raw, ...extracted };
     this.sessions.set(sessionId, session);
 
     if (!session.conditions.budget_max) {
@@ -23,6 +24,10 @@ export class MockChatServer {
 
     if (!session.conditions.deal_type) {
       return this.response(sessionId, "asking", fixture.dealQuestion as BotMessage[]);
+    }
+
+    if (!session.conditions.preference_text) {
+      return this.response(sessionId, "asking", fixture.preferenceQuestion as BotMessage[]);
     }
 
     return this.response(
@@ -35,7 +40,11 @@ export class MockChatServer {
     );
   }
 
-  private resultMessages(conditions: Required<Conditions>): BotMessage[] {
+  private resultMessages(conditions: Conditions): BotMessage[] {
+    if (!conditions.budget_max || !conditions.deal_type) {
+      return fixture.error as BotMessage[];
+    }
+
     if (conditions.budget_max < 60000000 && conditions.deal_type === "jeonse") {
       return fixture.empty as BotMessage[];
     }
@@ -86,5 +95,48 @@ export class MockChatServer {
 
   private delay(): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, 250));
+  }
+
+  private extractFromRawMessage(
+    current: Conditions,
+    rawMessage?: string | null,
+  ): Conditions {
+    if (!rawMessage) {
+      return {};
+    }
+
+    if (!current.budget_max) {
+      const budget = this.extractBudget(rawMessage);
+      return budget ? { budget_max: budget } : {};
+    }
+
+    if (!current.deal_type) {
+      if (rawMessage.includes("전세")) {
+        return { deal_type: "jeonse" };
+      }
+      if (rawMessage.includes("월세")) {
+        return { deal_type: "monthly_rent" };
+      }
+      return {};
+    }
+
+    return { preference_text: rawMessage };
+  }
+
+  private extractBudget(rawMessage: string): number | null {
+    const digits = rawMessage.match(/\d+/)?.[0];
+    if (!digits) {
+      return null;
+    }
+
+    const value = Number(digits);
+    if (rawMessage.includes("억")) {
+      return value * 100000000;
+    }
+    if (rawMessage.includes("만")) {
+      return value * 10000;
+    }
+
+    return value;
   }
 }

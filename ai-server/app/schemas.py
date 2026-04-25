@@ -10,13 +10,17 @@ class DealType(StrEnum):
 
 
 class Conditions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     budget_max: Annotated[int | None, Field(gt=0, le=10_000_000_000)] = None
     deal_type: DealType | None = None
+    preference_text: str | None = None
 
 
 class ChatRequest(BaseModel):
     session_id: str | None = None
     raw: Conditions = Field(default_factory=Conditions)
+    raw_message: str | None = None
 
 
 class QuickReplyChip(BaseModel):

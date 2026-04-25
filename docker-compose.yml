@@ -12,8 +12,6 @@ services:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
     command: npm run dev -- --host 0.0.0.0
-    depends_on:
-      - ai-server
 
   ai-server:
     build:
@@ -23,8 +21,14 @@ services:
     environment:
       BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
       AI_BACKEND_MODE: ${AI_BACKEND_MODE:-mock}
+      AI_PROVIDER: ${AI_PROVIDER:-dummy}
       AI_DUMMY_FAIL: ${AI_DUMMY_FAIL:-false}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://llm-runtime:8000/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-EMPTY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-Qwen/Qwen3.5-2B}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-15000}
+      LLM_PROMPT_STYLE: ${LLM_PROMPT_STYLE:-hermes}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173}
       PYTHONPATH: /app
     volumes:
