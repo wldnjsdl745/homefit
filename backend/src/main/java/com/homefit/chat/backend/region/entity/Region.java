@@ -28,7 +28,7 @@ public class Region {
     @Column(name = "sigungu", nullable = false, length = 50)
     private String sigungu;
 
-    @Column(name = "legal_dong_code", length = 10))
+    @Column(name = "legal_dong_code", length = 10)
     private String legalDongCode;
 
     @Column(name = "legal_dong_name", length = 50)
