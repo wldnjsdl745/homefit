@@ -9,7 +9,7 @@
   - [backend-mvp.md](../../backend-mvp.md)
   - [ai-backend.md](../../ai-backend.md)
   - [ai-frontend.md](../../ai-frontend.md)
-  - [ERD2.md](./ERD2.md)
+  - [ERD2.md](../data/ERD.md)
 
 ---
 
