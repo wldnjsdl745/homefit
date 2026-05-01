@@ -66,8 +66,8 @@ housing_transactions  (MOLIT #11848613)
 - [x] `application.yaml` MySQL 설정
 - [x] Flyway 마이그레이션
 - [ ] Entity: `ChatMessage` (raw/conditions를 JSON 컬럼으로)
-- [ ] Entity: `Region` / `HousingTransaction`
-- [ ] Repository
+- [x] Entity: `Region` / `HousingTransaction`
+- [x] Repository
 
 ### B2. 시드 적재
 - [x] MOLIT #11848613 데이터셋 확보
@@ -130,8 +130,8 @@ housing_transactions  (MOLIT #11848613)
 - [ ] 결과 없음 → `regions: []`
 
 ### B5. 점수식 / 정렬 정책 (단순)
-- [ ] 필터링: `deposit_amount ≤ budget_max` AND `deal_type = ?`
-- [ ] 정렬: 평균 거래가 오름차순 또는 거래 건수 내림차순 (BE 결정)
+- [x] 필터링: `deposit_amount ≤ budget_max` AND `deal_type = ?`
+- [x] 정렬: 평균 거래가 오름차순 또는 거래 건수 내림차순 (BE 결정)
 - [ ] 상위 3개 시군구 반환
 
 > 월세 고도화:
@@ -145,7 +145,7 @@ housing_transactions  (MOLIT #11848613)
 
 ### B7. 운영 기본기
 - [ ] springdoc-openapi 추가 (내부 API용 Swagger)
-- [ ] `/healthz` 또는 `/actuator/health`
+- [x] `/healthz` 또는 `/actuator/health`
 - [ ] 글로벌 예외 핸들러
 
 ### B8. Docker / 배포
