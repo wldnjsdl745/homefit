@@ -19,19 +19,19 @@ public class Region {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "sido", nullable = false)
+    @Column(name = "sido", nullable = false, length = 50)
     private String sido;
 
-    @Column(name = "sigungu_code")
+    @Column(name = "sigungu_code", length = 10)
     private String sigunguCode;
 
-    @Column(name = "sigungu", nullable = false)
+    @Column(name = "sigungu", nullable = false, length = 50)
     private String sigungu;
 
-    @Column(name = "legal_dong_code")
+    @Column(name = "legal_dong_code", length = 10)
     private String legalDongCode;
 
-    @Column(name = "legal_dong_name")
+    @Column(name = "legal_dong_name", length = 50)
     private String legalDongName;
 
     @CreationTimestamp

@@ -24,7 +24,7 @@ public class HousingTransaction {
     @JoinColumn(name = "region_id", nullable = false)
     private Region region;
 
-    @Column(name = "deal_type", nullable = false)
+    @Column(name = "deal_type", nullable = false, length = 30)
     private String dealType;
 
     @Column(name = "deposit_amount")

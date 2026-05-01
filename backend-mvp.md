@@ -57,6 +57,13 @@ housing_transactions  (MOLIT #11848613)
 
 ## 구현 체크리스트
 
+> 진행상황 업데이트: `2026-05-01`
+>
+> 확인 범위: `backend` 패키지의 Spring Boot 코드, Flyway 마이그레이션, 루트 `docker-compose.yml`.
+> 현재 backend는 DB 스키마/Entity/Repository 단계까지 구현되어 있고, 내부 API Controller/Service, Security 설정, Docker 배포 설정은 아직 없다.
+>
+> 검증: `./gradlew test` 실행 시 컴파일은 통과했지만 `BackendApplicationTests.contextLoads()`는 로컬 MySQL `root@localhost` 인증 실패로 실패한다. 테스트용 DB 프로파일 또는 Testcontainers/H2 설정이 필요하다.
+
 ### B0. 합의
 - [x] [plan.md §4](plan.md) FE↔AI 계약 확인
 - [x] [ai-backend.md](ai-backend.md) AI↔BE 내부 계약 확인
@@ -65,16 +72,18 @@ housing_transactions  (MOLIT #11848613)
 ### B1. DB / Entity
 - [x] `application.yaml` MySQL 설정
 - [x] Flyway 마이그레이션
-- [ ] Entity: `ChatMessage` (raw/conditions를 JSON 컬럼으로)
-- [ ] Entity: `Region` / `HousingTransaction`
-- [ ] Repository
+- [x] Entity: `ChatMessage` (raw/conditions를 JSON 컬럼으로)
+- [x] Entity: `Region` / `HousingTransaction`
+- [x] Repository
 
 ### B2. 시드 적재
 - [x] MOLIT #11848613 데이터셋 확보
-- [x] regions / housing_transactions MySQL 적재
+- [x] regions / housing_transactions MySQL 적재 
 - [x] 적재 범위: 서울 25개 구 + 경기 일부 (분당, 성남 등 시연용)
-- [x] 거래 유형: 전세 + 월세만
+- [x] 거래 유형: 전세 + 월세만 (`housing_transactions.deal_type` CHECK 제약)
 - [ ] 재현 가능한 적재 방법 문서화
+
+> backend 패키지 안에서는 시드 데이터 파일, 적재 스크립트, seed 마이그레이션을 확인하지 못했다.
 
 ### B3. 내부 API — `POST /internal/upsert-conditions`
 > AI 서버가 호출. raw + 직전 conditions를 받아 머지된 conditions 반환 + 저장.
@@ -104,6 +113,8 @@ housing_transactions  (MOLIT #11848613)
 - [ ] chat_messages INSERT (raw + 머지된 conditions, AI 서버에서 받은 그대로)
 - [ ] 응답에 session_id + 머지된 conditions echo
 
+> 현재 `ChatMessage` Entity/Repository는 있으나 `/internal/upsert-conditions` Controller/Service/DTO는 아직 없다. Entity의 `@PrePersist`에서 `sessionId` null 시 UUID를 생성하지만 API 동작으로 노출되지는 않았다.
+
 ### B4. 내부 API — `POST /internal/filter`
 > AI 서버가 호출. conditions로 DB 필터링 후 regions 리스트 반환.
 
@@ -129,9 +140,11 @@ housing_transactions  (MOLIT #11848613)
 - [ ] **상위 3개 시군구 이름 반환** (저장 ❌)
 - [ ] 결과 없음 → `regions: []`
 
+> `HousingTransactionRepository.findRegionNamesByDealTypeAndBudget(...)`에 조회/거래유형/예산/시군구 그룹화/거래량 내림차순 정렬/Pageable 제한 로직은 구현되어 있다. 다만 `/internal/filter` Controller/Service/DTO가 없어 API로는 아직 제공되지 않는다.
+
 ### B5. 점수식 / 정렬 정책 (단순)
-- [ ] 필터링: `deposit_amount ≤ budget_max` AND `deal_type = ?`
-- [ ] 정렬: 평균 거래가 오름차순 또는 거래 건수 내림차순 (BE 결정)
+- [x] 필터링: `deposit_amount ≤ budget_max` AND `deal_type = ?`
+- [x] 정렬: 평균 거래가 오름차순 또는 거래 건수 내림차순 (BE 결정: 거래 건수 내림차순)
 - [ ] 상위 3개 시군구 반환
 
 > 월세 고도화:
@@ -143,16 +156,22 @@ housing_transactions  (MOLIT #11848613)
 - [ ] AI 서버 ↔ BE는 같은 docker-compose 네트워크 → 인증 생략 가능 (MVP)
 - [ ] 운영 단계: 내부 토큰 (`X-Internal-Token`) 권장
 
+> `spring-boot-starter-security` 의존성은 있으나 SecurityConfig/CORS 설정은 아직 없다.
+
 ### B7. 운영 기본기
 - [ ] springdoc-openapi 추가 (내부 API용 Swagger)
-- [ ] `/healthz` 또는 `/actuator/health`
+- [x] `/healthz` 또는 `/actuator/health`
 - [ ] 글로벌 예외 핸들러
+
+> Actuator 의존성으로 `/actuator/health`는 제공 가능하다. 별도 `/healthz` Controller는 없다.
 
 ### B8. Docker / 배포
 - [ ] Dockerfile (multi-stage, JRE 21)
 - [ ] docker-compose에 `mysql` + `backend` 추가
 - [ ] AI 서버와 같은 네트워크
 - [ ] `.env.example`
+
+> 루트 `docker-compose.yml`에는 현재 `frontend`, `ai-server`만 있고 `backend`, `mysql` 서비스는 없다.
 
 ---
 
