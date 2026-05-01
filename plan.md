@@ -346,6 +346,8 @@ FE가 기억할 핵심:
 
 ### 6.2 폴더 구조
 
+#### Frontend
+
 ```
 frontend/
 ├── src/
@@ -373,6 +375,58 @@ frontend/
 
 > **FE에 정규식/룰베이스 없음**. 모든 의미 처리는 AI 서버.
 > **카드/시트 컴포넌트도 v0에 없음** (텍스트 응답만).
+
+#### Backend
+
+> BE는 AI 서버에서만 호출되는 내부 API 서버다. 세부 구현 체크리스트는 [backend-mvp.md](backend-mvp.md)를 기준으로 한다.
+
+```
+backend/
+├── src/
+│   ├── main/
+│   │   ├── java/com/homefit/backend/
+│   │   │   ├── BackendApplication.java
+│   │   │   ├── config/
+│   │   │   │   └── SecurityConfig.java              # MVP: 내부 API permitAll 또는 내부망 전제
+│   │   │   ├── internal/
+│   │   │   │   ├── controller/
+│   │   │   │   │   └── InternalApiController.java   # /internal/upsert-conditions, /internal/filter
+│   │   │   │   └── dto/
+│   │   │   │       ├── UpsertConditionsRequest.java
+│   │   │   │       ├── UpsertConditionsResponse.java
+│   │   │   │       ├── FilterRegionsRequest.java
+│   │   │   │       └── FilterRegionsResponse.java
+│   │   │   ├── chat/
+│   │   │   │   ├── domain/
+│   │   │   │   │   └── ChatMessage.java             # raw/conditions JSON 저장
+│   │   │   │   ├── repository/
+│   │   │   │   │   └── ChatMessageRepository.java
+│   │   │   │   └── service/
+│   │   │   │       └── ChatMessageService.java
+│   │   │   ├── region/
+│   │   │   │   ├── domain/
+│   │   │   │   │   └── Region.java
+│   │   │   │   └── repository/
+│   │   │   │       └── RegionRepository.java
+│   │   │   ├── transaction/
+│   │   │   │   ├── domain/
+│   │   │   │   │   └── HousingTransaction.java
+│   │   │   │   ├── repository/
+│   │   │   │   │   └── HousingTransactionRepository.java
+│   │   │   │   └── service/
+│   │   │   │       └── RegionFilterService.java     # conditions 기반 상위 3개 지역 조회
+│   │   │   └── common/
+│   │   │       └── exception/
+│   │   │           └── GlobalExceptionHandler.java
+│   │   └── resources/
+│   │       ├── application.yaml
+│   │       └── db/migration/
+│   │           └── V1__init.sql
+│   └── test/
+│       └── java/com/homefit/backend/
+├── build.gradle
+└── settings.gradle
+```
 
 ### 6.3 챗봇 상태 (FE 단순화)
 

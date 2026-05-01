@@ -3,7 +3,7 @@
 > BE는 **AI 서버에서만 호출되는 내부 API**. FE에 직접 노출 ❌.
 > 책임: conditions 영속화 + DB 필터링 (계산).
 > AI 서버 측 호출자는 [ai-backend.md](ai-backend.md), 전체 설계는 [plan.md](plan.md).
-> 기준 ERD는 [docs/erd/ERD2.md](docs/erd/ERD2.md)로 고정한다.
+> 기준 ERD는 [docs/erd/ERD2.md](docs/data/ERD.md)로 고정한다.
 
 ---
 
@@ -34,7 +34,7 @@
 ## 데이터 모델 (단일 테이블 중심)
 
 > 단일 테이블 `chat_messages`에 raw + conditions JSON 저장.
-> 기준 ERD는 [docs/erd/ERD2.md](docs/erd/ERD2.md)와 [docs/schema/schema.sql](docs/schema/schema.sql)이다.
+> 기준 ERD는 [docs/erd/ERD2.md](docs/data/ERD.md)와 [docs/schema/schema.sql](docs/data/schema.sql)이다.
 
 ```
 chat_messages
@@ -60,20 +60,21 @@ housing_transactions  (MOLIT #11848613)
 ### B0. 합의
 - [x] [plan.md §4](plan.md) FE↔AI 계약 확인
 - [x] [ai-backend.md](ai-backend.md) AI↔BE 내부 계약 확인
-- [x] 기준 ERD를 [docs/erd/ERD2.md](docs/erd/ERD2.md)로 확정
+- [x] 기준 ERD를 [docs/erd/ERD2.md](docs/data/ERD.md)로 확정
 
 ### B1. DB / Entity
-- [ ] `application.yaml` MySQL 설정
-- [ ] Flyway 마이그레이션
+- [x] `application.yaml` MySQL 설정
+- [x] Flyway 마이그레이션
 - [ ] Entity: `ChatMessage` (raw/conditions를 JSON 컬럼으로)
 - [ ] Entity: `Region` / `HousingTransaction`
 - [ ] Repository
 
 ### B2. 시드 적재
-- [ ] MOLIT #11848613 데이터셋 다운로드
-- [ ] CSV → DB 적재 로직 (CommandLineRunner)
-- [ ] 적재 범위: 서울 25개 구 + 경기 일부 (분당, 성남 등 시연용)
-- [ ] 거래 유형: 전세 + 월세만
+- [x] MOLIT #11848613 데이터셋 확보
+- [x] regions / housing_transactions MySQL 적재
+- [x] 적재 범위: 서울 25개 구 + 경기 일부 (분당, 성남 등 시연용)
+- [x] 거래 유형: 전세 + 월세만
+- [ ] 재현 가능한 적재 방법 문서화
 
 ### B3. 내부 API — `POST /internal/upsert-conditions`
 > AI 서버가 호출. raw + 직전 conditions를 받아 머지된 conditions 반환 + 저장.
