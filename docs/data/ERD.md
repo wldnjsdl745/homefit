@@ -14,8 +14,6 @@
 
 ## 0. 문서 목적
 
-기존 [ERD.md](./ERD.md)는 `chat_conditions` 분리 모델과 봇 메시지 저장 전제를 포함하고 있어, 현재 합의된 MVP 설계와 맞지 않는 부분이 있습니다.
-
 본 문서는 아래 합의 사항을 반영한 **수정 ERD 초안**입니다.
 
 - FE의 진입점은 AI 서버
@@ -370,21 +368,7 @@ Ref: housing_transactions.region_id > regions.id
 
 ---
 
-## 9. 기존 ERD 대비 변경점
-
-기존 [ERD.md](./ERD.md) 대비 핵심 변경은 아래와 같습니다.
-
-1. `chat_conditions` 제거
-2. `chat_messages`에 `raw`, `conditions` JSON 추가
-3. `conversation_key` 대신 `session_id` 사용
-4. 봇 메시지 저장 전제 제거
-5. `recommendation_results` 저장 모델 제거 유지
-6. `housing_transactions.transaction_type`를 현재 합의된 `deal_type` 명칭으로 정리
-7. 적재 범위를 "서울시만" 고정하지 않고 시연용 경기 일부 확장 가능하도록 정리
-
----
-
-## 10. 최종 정리
+## 9. 최종 정리
 
 현재 합의된 MVP 기준에서 DB는 "채팅형 추천 시스템의 상태 저장소"이지, "대화 전문과 추천 결과를 모두 저장하는 로그 DB"가 아닙니다.
 

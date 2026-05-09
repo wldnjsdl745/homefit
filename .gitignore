@@ -17,3 +17,8 @@ frontend/vitest.config.js
 # Local env
 .env
 .env.local
+
+# Local database dumps
+*.sql
+*.sql.gz
+!backend/src/main/resources/db/migration/*.sql

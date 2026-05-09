@@ -22,7 +22,7 @@ services:
       - "8000:8000"
     environment:
       BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
-      AI_BACKEND_MODE: ${AI_BACKEND_MODE:-mock}
+      AI_BACKEND_MODE: ${AI_BACKEND_MODE:-http}
       AI_PROVIDER: ${AI_PROVIDER:-qwen}
       AI_DUMMY_FAIL: ${AI_DUMMY_FAIL:-false}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
@@ -41,6 +41,10 @@ services:
     depends_on:
       llm-runtime:
         condition: service_healthy
+      backend:
+        condition: service_started
+      db-seed:
+        condition: service_completed_successfully
 
   llm-runtime:
     image: ollama/ollama:latest
@@ -61,6 +65,50 @@ services:
       retries: 30
       start_period: 60s
 
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:mysql://db:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-homefit}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-homefit}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-homefit}
+      MYSQL_USER: ${MYSQL_USER:-homefit}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-homefit}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-homefit-root}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER:-homefit}", "-p${MYSQL_PASSWORD:-homefit}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  db-seed:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-homefit}
+      MYSQL_USER: ${MYSQL_USER:-homefit}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-homefit}
+    volumes:
+      - ./db/seed:/seed:ro
+    entrypoint: ["/bin/sh", "/seed/import-if-needed.sh"]
+    depends_on:
+      backend:
+        condition: service_started
+
 volumes:
   frontend_node_modules:
   ollama_models:
+  mysql_data:
