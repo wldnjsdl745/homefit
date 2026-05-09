@@ -2,6 +2,7 @@ FRONTEND_DIR := frontend
 AI_DIR := ai-server
 NPM := npm --prefix $(FRONTEND_DIR)
 COMPOSE := docker compose
+SEED_DATA ?= seed-data.sql
 
 .PHONY: help
 help:
@@ -18,6 +19,11 @@ help:
 	@printf "  make docker-up          Run frontend dev server in Docker\n"
 	@printf "  make docker-up-detached Run frontend dev server in Docker background\n"
 	@printf "  make docker-down        Stop Docker services\n"
+	@printf "  make docker-db-up       Run Docker MySQL only\n"
+	@printf "  make docker-db-import   Import seed-data.sql into Docker MySQL\n"
+	@printf "  make docker-db-backup   Export Docker MySQL data to backup-data.sql\n"
+	@printf "  make docker-db-shell    Open Docker MySQL shell\n"
+	@printf "  make docker-down-volumes Stop services and remove Docker volumes\n"
 	@printf "  make docker-frontend-test Run frontend tests in Docker\n"
 	@printf "  make docker-frontend-lint Run frontend lint in Docker\n"
 	@printf "  make docker-frontend-build Build frontend app in Docker\n"
@@ -55,7 +61,7 @@ frontend-check: frontend-lint frontend-test frontend-build
 
 .PHONY: docker-build
 docker-build:
-	$(COMPOSE) build frontend ai-server
+	$(COMPOSE) build frontend ai-server backend
 
 .PHONY: docker-frontend-install
 docker-frontend-install:
@@ -72,6 +78,29 @@ docker-up-detached:
 .PHONY: docker-down
 docker-down:
 	$(COMPOSE) down
+
+.PHONY: docker-db-up
+docker-db-up:
+	$(COMPOSE) up -d db
+
+.PHONY: docker-db-import
+docker-db-import:
+	@test -f $(SEED_DATA) || (printf "$(SEED_DATA) not found. Create it with mysqldump --no-create-info first.\n" && exit 1)
+	$(COMPOSE) up -d db
+	$(COMPOSE) exec -T db sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"' < $(SEED_DATA)
+
+.PHONY: docker-db-backup
+docker-db-backup:
+	$(COMPOSE) up -d db
+	$(COMPOSE) exec -T db sh -c 'mysqldump --no-create-info --single-transaction -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE" regions housing_transactions' > backup-data.sql
+
+.PHONY: docker-db-shell
+docker-db-shell:
+	$(COMPOSE) exec db sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"'
+
+.PHONY: docker-down-volumes
+docker-down-volumes:
+	$(COMPOSE) down -v
 
 .PHONY: docker-frontend-test
 docker-frontend-test:
