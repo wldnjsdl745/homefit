@@ -1,6 +1,6 @@
-package com.homefit.chat.backend.region.repository;
+package com.homefit.region.repository;
 
-import com.homefit.chat.backend.region.entity.Region;
+import com.homefit.region.entity.Region;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

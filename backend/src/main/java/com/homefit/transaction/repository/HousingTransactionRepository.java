@@ -1,6 +1,6 @@
-package com.homefit.chat.backend.transaction.repository;
+package com.homefit.transaction.repository;
 
-import com.homefit.chat.backend.transaction.entity.HousingTransaction;
+import com.homefit.transaction.entity.HousingTransaction;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

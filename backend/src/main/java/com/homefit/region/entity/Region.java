@@ -1,4 +1,4 @@
-package com.homefit.chat.backend.region.entity;
+package com.homefit.region.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

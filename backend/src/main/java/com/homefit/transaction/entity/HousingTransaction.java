@@ -1,6 +1,6 @@
-package com.homefit.chat.backend.transaction.entity;
+package com.homefit.transaction.entity;
 
-import com.homefit.chat.backend.region.entity.Region;
+import com.homefit.region.entity.Region;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

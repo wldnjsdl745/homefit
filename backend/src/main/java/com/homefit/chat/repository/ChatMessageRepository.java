@@ -1,6 +1,6 @@
-package com.homefit.chat.backend.chat.repository;
+package com.homefit.chat.repository;
 
-import com.homefit.chat.backend.chat.entity.ChatMessage;
+import com.homefit.chat.entity.ChatMessage;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

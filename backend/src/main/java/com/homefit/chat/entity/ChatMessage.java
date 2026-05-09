@@ -1,4 +1,4 @@
-package com.homefit.chat.backend.chat.entity;
+package com.homefit.chat.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
