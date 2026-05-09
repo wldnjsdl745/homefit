@@ -3,6 +3,8 @@ AI_DIR := ai-server
 NPM := npm --prefix $(FRONTEND_DIR)
 COMPOSE := docker compose
 SEED_DATA ?= seed-data.sql
+SEED_DIR ?= db/seed
+SEED_ARCHIVE ?= $(SEED_DIR)/seed-data.sql.gz
 
 .PHONY: help
 help:
@@ -20,7 +22,8 @@ help:
 	@printf "  make docker-up-detached Run frontend dev server in Docker background\n"
 	@printf "  make docker-down        Stop Docker services\n"
 	@printf "  make docker-db-up       Run Docker MySQL only\n"
-	@printf "  make docker-db-import   Import seed-data.sql into Docker MySQL\n"
+	@printf "  make docker-db-pack     Compress seed-data.sql for automatic Docker seed import\n"
+	@printf "  make docker-db-import   Import db/seed seed data into Docker MySQL when empty\n"
 	@printf "  make docker-db-backup   Export Docker MySQL data to backup-data.sql\n"
 	@printf "  make docker-db-shell    Open Docker MySQL shell\n"
 	@printf "  make docker-down-volumes Stop services and remove Docker volumes\n"
@@ -83,11 +86,18 @@ docker-down:
 docker-db-up:
 	$(COMPOSE) up -d db
 
+.PHONY: docker-db-pack
+docker-db-pack:
+	@test -f $(SEED_DATA) || (printf "$(SEED_DATA) not found. Create it with mysqldump first.\n" && exit 1)
+	@mkdir -p $(SEED_DIR)
+	gzip -c $(SEED_DATA) > $(SEED_ARCHIVE)
+	@printf "Wrote $(SEED_ARCHIVE). This file is ignored by git; share it separately.\n"
+
 .PHONY: docker-db-import
 docker-db-import:
-	@test -f $(SEED_DATA) || (printf "$(SEED_DATA) not found. Create it with mysqldump --no-create-info first.\n" && exit 1)
-	$(COMPOSE) up -d db
-	$(COMPOSE) exec -T db sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"' < $(SEED_DATA)
+	@test -f $(SEED_ARCHIVE) -o -f $(SEED_DIR)/seed-data.sql || (printf "$(SEED_ARCHIVE) or $(SEED_DIR)/seed-data.sql not found. Run make docker-db-pack first.\n" && exit 1)
+	$(COMPOSE) up -d backend
+	$(COMPOSE) run --rm db-seed
 
 .PHONY: docker-db-backup
 docker-db-backup:

@@ -32,7 +32,8 @@ services:
       - ./ai-server/tests:/app/tests
     command: uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload
     depends_on:
-      - backend
+      db-seed:
+        condition: service_completed_successfully
 
   backend:
     build:
@@ -63,6 +64,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  db-seed:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-homefit}
+      MYSQL_USER: ${MYSQL_USER:-homefit}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-homefit}
+    volumes:
+      - ./db/seed:/seed:ro
+    entrypoint: ["/bin/sh", "/seed/import-if-needed.sh"]
+    depends_on:
+      backend:
+        condition: service_started
 
 volumes:
   frontend_node_modules:

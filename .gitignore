@@ -20,4 +20,5 @@ frontend/vitest.config.js
 
 # Local database dumps
 *.sql
+*.sql.gz
 !backend/src/main/resources/db/migration/*.sql
