@@ -10,10 +10,10 @@ class Settings(BaseSettings):
     ai_provider: str = Field(default="dummy", alias="AI_PROVIDER")
     dummy_fail: bool = Field(default=False, alias="AI_DUMMY_FAIL")
     timeout_ms: int = Field(default=5000, alias="AI_TIMEOUT_MS")
-    llm_base_url: str = Field(default="http://llm-runtime:8000/v1", alias="OPENAI_BASE_URL")
+    llm_base_url: str = Field(default="http://llm-runtime:11434/v1", alias="OPENAI_BASE_URL")
     llm_api_key: str = Field(default="EMPTY", alias="OPENAI_API_KEY")
-    llm_model: str = Field(default="Qwen/Qwen3.5-2B", alias="OPENAI_MODEL")
-    llm_timeout_ms: int = Field(default=15000, alias="LLM_TIMEOUT_MS")
+    llm_model: str = Field(default="qwen3:1.7b", alias="OPENAI_MODEL")
+    llm_timeout_ms: int = Field(default=30000, alias="LLM_TIMEOUT_MS")
     llm_prompt_style: str = Field(default="hermes", alias="LLM_PROMPT_STYLE")
     port: int = Field(default=8000, alias="AI_PORT")
     cors_allow_origins: str = "http://localhost:5173"
