@@ -22,7 +22,7 @@ services:
       - "8000:8000"
     environment:
       BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
-      AI_BACKEND_MODE: ${AI_BACKEND_MODE:-mock}
+      AI_BACKEND_MODE: ${AI_BACKEND_MODE:-http}
       AI_DUMMY_FAIL: ${AI_DUMMY_FAIL:-false}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173}
@@ -31,6 +31,37 @@ services:
       - ./ai-server/app:/app/app
       - ./ai-server/tests:/app/tests
     command: uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: homefit
+      SPRING_DATASOURCE_PASSWORD: homefit
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: homefit
+      MYSQL_USER: homefit
+      MYSQL_PASSWORD: homefit
+      MYSQL_ROOT_PASSWORD: homefit-root
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uhomefit", "-phomefit"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
 volumes:
   frontend_node_modules:
+  mysql_data:

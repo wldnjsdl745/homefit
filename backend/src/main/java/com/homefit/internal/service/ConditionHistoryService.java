@@ -31,7 +31,11 @@ public class ConditionHistoryService {
     public UpsertConditionsResponse upsert(UpsertConditionsRequest request) {
         String sessionId = resolveSessionId(request.sessionId());
         Map<String, Object> mergedConditions = loadLatestConditions(sessionId);
-        mergedConditions.putAll(request.conditions());
+        request.conditions().forEach((key, value) -> {
+            if (value != null) {
+                mergedConditions.put(key, value);
+            }
+        });
         validator.validatePartial(mergedConditions);
 
         ChatMessage chatMessage = ChatMessage.create(

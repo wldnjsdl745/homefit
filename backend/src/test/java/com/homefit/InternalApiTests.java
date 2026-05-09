@@ -77,8 +77,8 @@ class InternalApiTests {
                         .content("""
                                 {
                                   "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
-                                  "raw": { "deal_type": "jeonse" },
-                                  "conditions": { "deal_type": "jeonse" }
+                                  "raw": { "budget_max": null, "deal_type": "jeonse" },
+                                  "conditions": { "budget_max": null, "deal_type": "jeonse" }
                                 }
                                 """))
                 .andExpect(status().isOk())
