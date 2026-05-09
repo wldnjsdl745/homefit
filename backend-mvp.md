@@ -67,7 +67,7 @@ housing_transactions  (MOLIT #11848613)
 ### B0. 합의
 - [x] [plan.md §4](plan.md) FE↔AI 계약 확인
 - [x] [ai-backend.md](ai-backend.md) AI↔BE 내부 계약 확인
-- [x] 기준 ERD를 [docs/erd/ERD2.md](docs/data/ERD.md)로 확정
+- [x] 기준 ERD를 [docs/erd/ERD.md](docs/data/ERD.md)로 확정
 
 ### B1. DB / Entity
 - [x] `application.yaml` MySQL 설정
