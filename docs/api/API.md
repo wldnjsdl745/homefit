@@ -427,7 +427,9 @@ http://backend:8080
 ### 처리 규칙
 
 - `deal_type` 일치 조건으로 필터링합니다.
-- 전세 기준은 `deposit_amount <= budget_max`를 사용합니다.
+- `budget_max`는 API에서 원 단위로 받습니다.
+- DB의 `deposit_amount`는 만원 단위이므로 BE에서 `budget_max / 10000`으로 변환한 뒤 비교합니다.
+- 전세 기준은 `deposit_amount <= budget_max_in_manwon`를 사용합니다.
 - 시군구 기준으로 그룹화합니다.
 - 평균 거래가 또는 거래량 기준으로 정렬합니다.
 - 상위 3개 지역명을 반환합니다.

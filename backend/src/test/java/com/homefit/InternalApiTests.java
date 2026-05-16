@@ -88,17 +88,17 @@ class InternalApiTests {
     }
 
     @Test
-    void filterReturnsTopThreeRegionsByTransactionCount() throws Exception {
+    void filterReturnsTopThreeRegionsByTransactionCountWithinBudgetInManwon() throws Exception {
         long bundang = insertRegion("경기도", "41135", "분당", "001", "정자동");
         long seongnam = insertRegion("경기도", "41131", "성남", "002", "태평동");
         long suwon = insertRegion("경기도", "41111", "수원", "003", "매탄동");
         long yongsan = insertRegion("서울특별시", "11170", "용산", "004", "한남동");
 
-        insertTransactions(bundang, "jeonse", 100_000_000L, 3);
-        insertTransactions(seongnam, "jeonse", 150_000_000L, 2);
-        insertTransactions(suwon, "jeonse", 180_000_000L, 1);
-        insertTransactions(yongsan, "jeonse", 900_000_000L, 5);
-        insertTransactions(bundang, "monthly_rent", 50_000_000L, 5);
+        insertTransactions(bundang, "jeonse", 10_000L, 3);
+        insertTransactions(seongnam, "jeonse", 15_000L, 2);
+        insertTransactions(suwon, "jeonse", 18_000L, 1);
+        insertTransactions(yongsan, "jeonse", 90_000L, 5);
+        insertTransactions(bundang, "monthly_rent", 5_000L, 5);
 
         mockMvc.perform(post("/internal/filter")
                         .contentType(APPLICATION_JSON)

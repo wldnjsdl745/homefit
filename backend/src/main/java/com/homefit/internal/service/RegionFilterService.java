@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RegionFilterService {
 
     private static final int REGION_LIMIT = 3;
+    private static final long WON_PER_MANWON = 10_000L;
 
     private final HousingTransactionRepository housingTransactionRepository;
     private final InternalConditionValidator validator;
@@ -21,11 +22,12 @@ public class RegionFilterService {
     public FilterRegionsResponse filter(FilterRegionsRequest request) {
         String dealType = validator.requireDealType(request.conditions());
         long budgetMax = validator.requireBudgetMax(request.conditions());
+        long budgetMaxInManwon = budgetMax / WON_PER_MANWON;
 
         return new FilterRegionsResponse(
                 housingTransactionRepository.findRegionNamesByDealTypeAndBudget(
                         dealType,
-                        budgetMax,
+                        budgetMaxInManwon,
                         PageRequest.of(0, REGION_LIMIT)
                 )
         );
