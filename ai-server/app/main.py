@@ -10,7 +10,27 @@ from app.config import get_settings
 from app.schemas import BotTextMessage, ChatRequest, ChatResponse, HealthResponse
 from app.services.backend_client import HttpBackendClient, MockBackendClient
 from app.services.chat_service import ChatService
-from app.services.llm_provider import OpenAICompatibleLlmProvider, SafeLlmProvider
+from app.services.llm_provider import (
+    LlmProvider,
+    OllamaNativeLlmProvider,
+    OpenAICompatibleLlmProvider,
+    SafeLlmProvider,
+)
+
+
+def _create_llm_provider(settings) -> LlmProvider | None:
+    """AI_PROVIDER 환경변수에 따라 적절한 Provider 인스턴스 생성.
+
+    분기:
+      - `ollama_native` / `qwen_native` → OllamaNativeLlmProvider (think: false)
+      - `qwen` / `openai_compatible`    → OpenAICompatibleLlmProvider
+      - 그 외 (`dummy` 포함)            → None (LLM 미사용)
+    """
+    if not settings.use_llm_provider:
+        return None
+    if settings.use_ollama_native:
+        return SafeLlmProvider(OllamaNativeLlmProvider(settings))
+    return SafeLlmProvider(OpenAICompatibleLlmProvider(settings))
 
 
 def create_chat_service() -> ChatService:
@@ -20,11 +40,7 @@ def create_chat_service() -> ChatService:
         if settings.use_mock_backend
         else HttpBackendClient(base_url=settings.backend_url, timeout_ms=settings.timeout_ms)
     )
-    llm_provider = (
-        SafeLlmProvider(OpenAICompatibleLlmProvider(settings))
-        if settings.use_llm_provider
-        else None
-    )
+    llm_provider = _create_llm_provider(settings)
     return ChatService(
         backend_client=backend_client,
         settings=settings,

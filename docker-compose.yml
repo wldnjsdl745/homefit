@@ -23,14 +23,24 @@ services:
     environment:
       BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
       AI_BACKEND_MODE: ${AI_BACKEND_MODE:-http}
-      AI_PROVIDER: ${AI_PROVIDER:-qwen}
+      # AI_PROVIDER:
+      #   - "openai_compatible" (or "qwen"): OpenAI 호환 /v1/chat/completions
+      #     (OpenRouter / Claude API / GPT 등에서 사용. 디폴트.)
+      #   - "ollama_native" (or "qwen_native"): Ollama /api/chat + think:false
+      #     (로컬 Ollama 모드. llm-runtime 컨테이너도 같이 띄워야 함.)
+      #   - "dummy": LLM 미사용 (칩 흐름만)
+      AI_PROVIDER: ${AI_PROVIDER:-openai_compatible}
       AI_DUMMY_FAIL: ${AI_DUMMY_FAIL:-false}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://llm-runtime:11434/v1}
+      # OpenRouter 디폴트. .env에서 OPENAI_API_KEY 설정해야 동작.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-EMPTY}
-      OPENAI_MODEL: ${OPENAI_MODEL:-qwen3.5:4b}
-      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-120000}
+      OPENAI_MODEL: ${OPENAI_MODEL:-qwen/qwen-2.5-72b-instruct:free}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-30000}
       LLM_PROMPT_STYLE: ${LLM_PROMPT_STYLE:-hermes}
+      # OpenRouter 분석/랭킹용 (선택)
+      OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-}
+      OPENROUTER_X_TITLE: ${OPENROUTER_X_TITLE:-Homefit}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173}
       PYTHONPATH: /app
     volumes:
@@ -39,8 +49,6 @@ services:
       - ./ai-server/pyproject.toml:/app/pyproject.toml:ro
     command: uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload
     depends_on:
-      llm-runtime:
-        condition: service_healthy
       backend:
         condition: service_started
       db-seed:
@@ -51,7 +59,9 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama_models:/root/.ollama
+      # 호스트 ~/.ollama 를 직접 마운트 — 받은 모델이 호스트 파일시스템에 영구 저장됨.
+      # 컨테이너 재생성 시에도 모델 유지 (Ollama가 sparse partial을 잃지 않음).
+      - ${HOME}/.ollama:/root/.ollama
       - ./ai-server/scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
     environment:
       OLLAMA_HOST: 0.0.0.0
@@ -110,5 +120,5 @@ services:
 
 volumes:
   frontend_node_modules:
-  ollama_models:
   mysql_data:
+  # ollama_models named volume은 더 이상 사용하지 않음 (호스트 ~/.ollama bind 마운트로 대체)
