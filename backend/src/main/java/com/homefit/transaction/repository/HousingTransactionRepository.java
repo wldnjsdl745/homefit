@@ -15,10 +15,10 @@ public interface HousingTransactionRepository extends JpaRepository<HousingTrans
             from HousingTransaction ht
             where ht.dealType = :dealType
               and (
-                :budgetMax is null
+                :budgetMaxInManwon is null
                 or (
                   ht.depositAmount is not null
-                  and ht.depositAmount <= :budgetMax
+                  and ht.depositAmount <= :budgetMaxInManwon
                 )
               )
             group by ht.region.sido, ht.region.sigungu
@@ -26,7 +26,7 @@ public interface HousingTransactionRepository extends JpaRepository<HousingTrans
             """)
     List<String> findRegionNamesByDealTypeAndBudget(
             @Param("dealType") String dealType,
-            @Param("budgetMax") Long budgetMax,
+            @Param("budgetMaxInManwon") Long budgetMaxInManwon,
             Pageable pageable
     );
 }
