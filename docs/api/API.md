@@ -1,15 +1,15 @@
 # homefit API 명세서
 
-- 문서 버전: `v0.1.0`
-- 작성일: `2026-04-25`
+- 문서 버전: `v0.2.0`
+- 작성일: `2026-05-16`
 - 문서 상태: `Draft`
-- 적용 범위: `MVP v0`
+- 적용 범위: `MVP v0 - 매매/월세 상한/서울 내부 추천 반영`
 - 기준 문서:
   - [plan.md](../../plan.md)
   - [backend-mvp.md](../../backend-mvp.md)
   - [ai-backend.md](../../ai-backend.md)
   - [ai-frontend.md](../../ai-frontend.md)
-  - [ERD2.md](../data/ERD.md)
+  - [ERD.md](../data/ERD.md)
 
 ---
 
@@ -27,6 +27,7 @@
 
 - FE는 AI 서버만 호출합니다.
 - BE는 내부 API만 제공합니다.
+- 추천 대상 지역은 서울 내부로 한정합니다.
 - 추천 결과와 AI 설명 텍스트는 DB에 저장하지 않습니다.
 - 세션 상태는 `chat_messages` 테이블의 `session_id`와 `conditions` JSON으로 관리합니다.
 
@@ -42,7 +43,7 @@ Frontend -> AI Server -> Backend -> MySQL
 
 - FE: 사용자 입력 전송, `bot_messages` 렌더
 - AI 서버: 공개 진입점, raw 검증, conditions 머지, BE 호출, 텍스트 가공, fallback 처리
-- BE: conditions 저장, 거래 데이터 필터링, 지역 목록 반환
+- BE: conditions 저장, 거래 데이터 필터링, 서울 내부 지역 목록 반환
 
 ---
 
@@ -79,9 +80,26 @@ MVP v0에서 사용하는 구조화 입력 키:
 | 키 | 타입 | 설명 |
 |---|---|---|
 | `budget_max` | number | 최대 예산 |
-| `deal_type` | string | `jeonse` 또는 `monthly_rent` |
+| `deal_type` | string | `jeonse`, `monthly_rent`, `sale` 중 하나 |
+| `monthly_rent_max` | number or null | 월세 선택 시 월마다 지출 가능한 월세 상한 |
 
-Phase 2 확장 예정 키:
+완성된 condition item 규칙:
+
+| 키 | 타입 | 설명 |
+|---|---|---|
+| `budget_max` | number | 원 단위 최대 예산 |
+| `deal_type` | string | `jeonse`, `monthly_rent`, `sale` 중 하나 |
+| `monthly_rent_max` | number or null | `deal_type="monthly_rent"`이면 원 단위 월세 상한, 그 외 거래 유형은 `null` |
+
+## 2.5 추천 지역 범위
+
+추천 지역은 서울 내부로 한정합니다.
+
+- BE는 서울 지역 거래 데이터만 필터링 대상에 포함합니다.
+- `regions`에는 서울 내부 지역명만 반환합니다.
+- 추천 후보는 서울 지역 데이터로만 구성합니다.
+
+## 2.6 Phase 2 확장 예정 키
 
 | 키 | 설명 |
 |---|---|
@@ -150,7 +168,9 @@ http://localhost:8000
 {
   "session_id": "uuid | null",
   "raw": {
-    "budget_max": 200000000
+    "budget_max": 200000000,
+    "deal_type": "monthly_rent",
+    "monthly_rent_max": 800000
   }
 }
 ```
@@ -188,29 +208,59 @@ http://localhost:8000
 {
   "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
   "raw": {
-    "deal_type": "jeonse"
+    "deal_type": "monthly_rent"
   }
 }
 ```
 
-### Response 200: Asking
+### 요청 예시 4. 월세 예산 입력
+
+월세를 거래 유형으로 선택한 경우에만 추가로 전송합니다.
+
+```json
+{
+  "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
+  "raw": {
+    "monthly_rent_max": 800000
+  }
+}
+```
+
+### Response 200: Asking Deal Type
 
 ```json
 {
   "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
   "state": "asking",
   "bot_messages": [
-    { "type": "bot.text", "content": "전세/월세 중 어떤 걸 원하시는지 알려주세요." },
+    { "type": "bot.text", "content": "전세, 월세, 매매 중 어떤 걸 원하시는지 알려주세요." },
     {
       "type": "bot.quick_replies",
       "chips": [
         { "id": "deal_jeonse", "label": "전세" },
-        { "id": "deal_monthly_rent", "label": "월세" }
+        { "id": "deal_monthly_rent", "label": "월세" },
+        { "id": "deal_sale", "label": "매매" }
       ]
     }
   ]
 }
 ```
+
+### Response 200: Asking Monthly Rent
+
+거래 유형이 `monthly_rent`이면 월세 예산을 추가로 질문합니다.
+
+```json
+{
+  "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
+  "state": "asking",
+  "bot_messages": [
+    { "type": "bot.text", "content": "월마다 나가는 월세 예산을 얼마로 생각하시나요?" }
+  ]
+}
+```
+
+FE는 사용자가 입력한 월세 금액을 원 단위 숫자로 변환해 다음 턴에 `monthly_rent_max`로 전송합니다.
 
 ### Response 200: Result
 
@@ -219,7 +269,7 @@ http://localhost:8000
   "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
   "state": "result",
   "bot_messages": [
-    { "type": "bot.text", "content": "전세 2억 예산에 맞는 지역은 분당·성남·경기도입니다." },
+    { "type": "bot.text", "content": "월세 보증금 2억, 월세 80만원 이하 조건에 맞는 서울 지역은 관악구·동작구·영등포구입니다." },
     {
       "type": "bot.quick_replies",
       "chips": [
@@ -244,7 +294,8 @@ http://localhost:8000
       "type": "bot.quick_replies",
       "chips": [
         { "id": "deal_jeonse", "label": "전세" },
-        { "id": "deal_monthly_rent", "label": "월세" }
+        { "id": "deal_monthly_rent", "label": "월세" },
+        { "id": "deal_sale", "label": "매매" }
       ]
     }
   ]
@@ -253,14 +304,14 @@ http://localhost:8000
 
 ### Response 200: Empty Result
 
-조건에 맞는 지역이 없을 때도 정상 응답 형태를 유지합니다.
+조건에 맞는 서울 지역이 없을 때도 정상 응답 형태를 유지합니다.
 
 ```json
 {
   "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
   "state": "result",
   "bot_messages": [
-    { "type": "bot.text", "content": "조건에 맞는 지역을 찾지 못했어요. 자본금을 다시 입력해볼까요?" },
+    { "type": "bot.text", "content": "입력한 조건에 맞는 서울 지역을 찾지 못했어요. 자본금을 다시 입력해볼까요?" },
     {
       "type": "bot.quick_replies",
       "chips": [
@@ -297,7 +348,10 @@ BE 호출 실패 등 서버 내부 문제는 fallback 응답으로 흡수합니�
 - 첫 호출에서는 `session_id`가 없으면 새 세션을 생성합니다.
 - AI 서버는 `raw`를 검증한 뒤 conditions를 머지합니다.
 - 필요한 값이 부족하면 `state="asking"`으로 다음 질문을 반환합니다.
-- `budget_max`와 `deal_type`이 모두 있으면 BE를 호출해 추천 결과를 생성합니다.
+- 질문 순서는 자본금, 거래 유형, 월세 예산 순서입니다.
+- 월세 예산 질문은 `deal_type="monthly_rent"`인 경우에만 사용합니다.
+- `budget_max`, `deal_type`, 월세 선택 시 `monthly_rent_max`가 모두 있으면 BE를 호출해 추천 결과를 생성합니다.
+- 전세와 매매 condition의 `monthly_rent_max`는 `null`로 전달합니다.
 - 결과가 비어 있어도 `state="result"`를 사용합니다.
 - FE는 실패 분기를 별도로 두지 않고 `bot_messages`를 그대로 렌더합니다.
 
@@ -306,8 +360,8 @@ BE 호출 실패 등 서버 내부 문제는 fallback 응답으로 흡수합니�
 | 필드 | 규칙 |
 |---|---|
 | `budget_max` | 양수 정수, 상한 검증 필요 |
-| `deal_type` | `jeonse`, `monthly_rent`만 허용 |
-| `sale` | MVP v0에서는 허용하지 않음 |
+| `deal_type` | `jeonse`, `monthly_rent`, `sale`만 허용 |
+| `monthly_rent_max` | `monthly_rent` 선택 시 양수 정수 필수. 그 외에는 `null` 또는 생략 가능 |
 
 ---
 
@@ -340,10 +394,13 @@ http://backend:8080
 {
   "session_id": "uuid | null",
   "raw": {
-    "budget_max": 200000000
+    "deal_type": "monthly_rent",
+    "monthly_rent_max": 800000
   },
   "conditions": {
-    "budget_max": 200000000
+    "budget_max": 200000000,
+    "deal_type": "monthly_rent",
+    "monthly_rent_max": 800000
   }
 }
 ```
@@ -363,7 +420,8 @@ http://backend:8080
   "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
   "conditions": {
     "budget_max": 200000000,
-    "deal_type": "jeonse"
+    "deal_type": "monthly_rent",
+    "monthly_rent_max": 800000
   }
 }
 ```
@@ -381,10 +439,14 @@ http://backend:8080
 {
   "id": "3294cbcc-d0e8-4587-91f6-f3b96f6040d1",
   "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
-  "raw": { "deal_type": "jeonse" },
+  "raw": {
+    "deal_type": "monthly_rent",
+    "monthly_rent_max": 800000
+  },
   "conditions": {
     "budget_max": 200000000,
-    "deal_type": "jeonse"
+    "deal_type": "monthly_rent",
+    "monthly_rent_max": 800000
   },
   "created_at": "2026-04-25T14:00:08"
 }
@@ -395,7 +457,7 @@ http://backend:8080
 ### 목적
 
 - 누적 conditions를 기준으로 거래 데이터를 필터링
-- 추천 지역 이름 목록 반환
+- 서울 내부 추천 지역 이름 목록 반환
 
 ### Request Body
 
@@ -403,7 +465,8 @@ http://backend:8080
 {
   "conditions": {
     "budget_max": 200000000,
-    "deal_type": "jeonse"
+    "deal_type": "monthly_rent",
+    "monthly_rent_max": 800000
   }
 }
 ```
@@ -412,7 +475,7 @@ http://backend:8080
 
 ```json
 {
-  "regions": ["분당", "성남", "경기도"]
+  "regions": ["관악구", "동작구", "영등포구"]
 }
 ```
 
@@ -430,7 +493,11 @@ http://backend:8080
 - `budget_max`는 API에서 원 단위로 받습니다.
 - DB의 `deposit_amount`는 만원 단위이므로 BE에서 `budget_max / 10000`으로 변환한 뒤 비교합니다.
 - 전세 기준은 `deposit_amount <= budget_max_in_manwon`를 사용합니다.
-- 시군구 기준으로 그룹화합니다.
+- 매매 데이터도 `deposit_amount` 컬럼에 매매가를 만원 단위로 저장하며, 매매 기준은 `deposit_amount <= budget_max_in_manwon`를 사용합니다.
+- 월세 기준은 `deposit_amount <= budget_max_in_manwon`와 `monthly_rent <= monthly_rent_max_in_manwon`를 함께 사용합니다.
+- DB의 `monthly_rent`는 만원 단위이므로 BE에서 `monthly_rent_max / 10000`으로 변환한 뒤 비교합니다.
+- 서울 지역 거래 데이터만 필터링 대상에 포함합니다.
+- 서울 내부 지역 기준으로 그룹화합니다.
 - 평균 거래가 또는 거래량 기준으로 정렬합니다.
 - 상위 3개 지역명을 반환합니다.
 - 결과는 저장하지 않습니다.
@@ -539,6 +606,17 @@ FE는 칩 클릭을 구조화된 `raw`로 변환해서 AI 서버에 전달합니
 |---|---|
 | `전세` | `{ "deal_type": "jeonse" }` |
 | `월세` | `{ "deal_type": "monthly_rent" }` |
+| `매매` | `{ "deal_type": "sale" }` |
+
+### 월세 예산 입력
+
+월세를 선택한 경우에만 일반 입력으로 받습니다. FE는 사용자가 입력한 값을 원 단위 숫자로 변환해 AI 서버에 전달합니다.
+
+| 사용자 입력 예시 | 전송값 |
+|---|---|
+| `50만원` | `{ "monthly_rent_max": 500000 }` |
+| `80만원` | `{ "monthly_rent_max": 800000 }` |
+| `100만원` | `{ "monthly_rent_max": 1000000 }` |
 
 ---
 
