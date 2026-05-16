@@ -3,11 +3,13 @@ export type DealType = "monthly_rent" | "jeonse";
 export type Conditions = {
   budget_max?: number;
   deal_type?: DealType;
+  preference_text?: string;
 };
 
 export type ChatRequest = {
   session_id?: string | null;
   raw: Conditions;
+  raw_message?: string | null;
 };
 
 export type ChatState = "asking" | "result";
@@ -33,6 +35,7 @@ export type ChatMessage =
       ts: number;
       role: "user";
       raw: Conditions;
+      rawMessage?: string;
       label: string;
       chipId?: string;
     }
