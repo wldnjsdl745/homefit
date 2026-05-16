@@ -207,9 +207,14 @@ POST /internal/filter
 |----|---|------|
 | `BACKEND_URL` | `http://backend:8080` | BE 내부 API base URL |
 | `AI_BACKEND_MODE` | `mock` (default) / `http` | BE 미구현 시 mock backend 사용 |
-| `AI_PROVIDER` | `dummy` (MVP) / `claude` / `local` (Phase 2) | LLM Provider |
+| `AI_PROVIDER` | `dummy` (default) / `qwen` (또는 `openai_compatible`) | LLM Provider 선택 |
 | `AI_DUMMY_FAIL` | `false` (default) / `true` | 강제 실패 (QA) |
 | `AI_TIMEOUT_MS` | `5000` | BE 호출 타임아웃 |
+| `OPENAI_BASE_URL` | `http://llm-runtime:11434/v1` | Ollama OpenAI-compat 엔드포인트 |
+| `OPENAI_API_KEY` | `EMPTY` | Ollama는 무시. placeholder |
+| `OPENAI_MODEL` | `qwen3:1.7b` | Qwen3 1.7B (Ollama 태그) |
+| `LLM_TIMEOUT_MS` | `30000` | LLM 호출 타임아웃 (CPU 추론 고려) |
+| `LLM_PROMPT_STYLE` | `hermes` | (현재 미사용 — 단일 prompt 고정) |
 | `AI_PORT` | `8000` | 서비스 포트 |
 | `CORS_ALLOW_ORIGINS` | `http://localhost:5173` | FE 도메인 |
 
@@ -219,7 +224,72 @@ POST /internal/filter
 
 - AI 서버 = stateless 오케스트레이터.
 - 세션/이력 = BE DB. AI는 매 호출마다 BE에서 conditions 받아옴.
-- LLM 미호출 (MVP). Provider 추상화는 그대로 유지 → Phase 2에 한 줄 교체.
+- Provider 추상화 유지 → 모델 교체는 환경변수 한 줄 (`AI_PROVIDER`).
+- Qwen 연동은 `AI_PROVIDER=qwen`으로 활성화한다.
+- Qwen은 사용자 자연어를 `raw conditions`로 추출하는 데만 사용한다.
+- 현재 허용하는 conditions 키는 `budget_max`, `deal_type`, `preference_text`다.
+- 의미 추출 결과가 허용 키에 없거나 현재 단계에서 쓸 수 없으면 사과/재질문 메시지를 반환한다.
+- 지역 추천, 필터링, 정렬은 Backend 책임이다.
+- LLM 실패 시 의미 추출 없이 기존 구조화 `raw` 기반 흐름으로 fallback한다.
+
+---
+
+## LLM 런타임 (Docker, Mac)
+
+> **Mac에서는 모든 서비스를 Docker로 띄운다.** Metal GPU 미접근 → CPU 추론 (시연 가능 수준).
+
+### 런타임 선정: **Ollama (Docker)**
+
+이유:
+- 공식 Docker 이미지 (`ollama/ollama:latest`)
+- OpenAI 호환 API (`/v1/chat/completions`) — 코드 변경 없음
+- Qwen3 1.7B 자동 pull 가능
+- 모델 캐시 볼륨 영속화
+
+### 모델: `qwen3:1.7b`
+
+- Qwen3 시리즈, 약 2B 파라미터급
+- Q4_K_M 양자화로 ~1.4GB
+- JSON 추출에 적합 (단순 2 키)
+
+### docker-compose 구성 (요약)
+
+```yaml
+llm-runtime:
+  image: ollama/ollama:latest
+  ports: ["11434:11434"]
+  volumes:
+    - ollama_models:/root/.ollama
+    - ./ai-server/scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
+  environment:
+    OLLAMA_MODEL: qwen3:1.7b
+  entrypoint: ["/bin/sh", "/entrypoint.sh"]
+  healthcheck:
+    test: ["CMD", "ollama", "list"]
+    interval: 10s
+    start_period: 60s
+```
+
+`ollama-entrypoint.sh`가 첫 기동 시 모델을 pull하고 서버를 띄운다.
+
+### 시연 환경변수
+
+```bash
+AI_PROVIDER=qwen
+OPENAI_BASE_URL=http://llm-runtime:11434/v1
+OPENAI_MODEL=qwen3:1.7b
+LLM_TIMEOUT_MS=30000
+```
+
+### Mac CPU 성능 참고
+
+| 항목 | 값 |
+|------|---|
+| 첫 모델 로드 | 5–10초 |
+| JSON 응답 (~100 토큰) | 5–15초 |
+| 타임아웃 | 30초 (`LLM_TIMEOUT_MS=30000`) |
+
+Native Ollama (호스트 직접 실행) 대비 5–10배 느림. 시연/개발에는 충분.
 
 ---
 

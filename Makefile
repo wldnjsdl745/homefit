@@ -9,31 +9,115 @@ SEED_ARCHIVE ?= $(SEED_DIR)/seed-data.sql.gz
 .PHONY: help
 help:
 	@printf "Homefit commands\n"
+	@printf "\n"
+	@printf "  ── 전체 스택 (한 번에) ──\n"
+	@printf "  make up                 Bring up the full stack (frontend / ai-server / llm-runtime / backend / db) detached\n"
+	@printf "  make down               Stop and remove all stack containers\n"
+	@printf "  make logs               Tail logs for the full stack\n"
+	@printf "  make ps                 Show stack container status\n"
+	@printf "  make restart            Restart the full stack\n"
+	@printf "  make build              Build all docker images\n"
+	@printf "\n"
+	@printf "  ── Qwen 통합 테스트 ──\n"
+	@printf "  make qwen-test          Run Qwen integration tests against the running llm-runtime\n"
+	@printf "  make qwen-smoke         Quick curl-based smoke test against /chat with raw_message\n"
+	@printf "  make llm-list           List models inside the llm-runtime\n"
+	@printf "  make llm-pull           Manually pull \$$OPENAI_MODEL into llm-runtime\n"
+	@printf "\n"
+	@printf "  ── Frontend ──\n"
 	@printf "  make frontend-install   Install frontend dependencies\n"
-	@printf "  make frontend-dev       Run frontend dev server\n"
+	@printf "  make frontend-dev       Run frontend dev server (host)\n"
 	@printf "  make frontend-build     Type-check and build frontend\n"
 	@printf "  make frontend-test      Run frontend unit/component tests\n"
-	@printf "  make frontend-test-watch Run frontend tests in watch mode\n"
 	@printf "  make frontend-lint      Run frontend lint\n"
-	@printf "  make frontend-check     Run lint, tests, and build\n"
-	@printf "  make docker-build       Build frontend Docker image\n"
-	@printf "  make docker-frontend-install Install frontend dependencies through Docker\n"
-	@printf "  make docker-up          Run frontend dev server in Docker\n"
-	@printf "  make docker-up-detached Run frontend dev server in Docker background\n"
-	@printf "  make docker-down        Stop Docker services\n"
+	@printf "  make frontend-check     Lint + test + build\n"
+	@printf "\n"
+	@printf "  ── AI server ──\n"
+	@printf "  make ai-test            Run ai-server unit tests in Docker\n"
+	@printf "  make ai-lint            Run ai-server lint in Docker\n"
+	@printf "  make ai-check           ai-server lint + unit tests\n"
+	@printf "\n"
+	@printf "  ── 데이터베이스 (Docker) ──\n"
 	@printf "  make docker-db-up       Run Docker MySQL only\n"
 	@printf "  make docker-db-pack     Compress seed-data.sql for automatic Docker seed import\n"
 	@printf "  make docker-db-import   Import db/seed seed data into Docker MySQL when empty\n"
 	@printf "  make docker-db-backup   Export Docker MySQL data to backup-data.sql\n"
 	@printf "  make docker-db-shell    Open Docker MySQL shell\n"
 	@printf "  make docker-down-volumes Stop services and remove Docker volumes\n"
-	@printf "  make docker-frontend-test Run frontend tests in Docker\n"
-	@printf "  make docker-frontend-lint Run frontend lint in Docker\n"
-	@printf "  make docker-frontend-build Build frontend app in Docker\n"
-	@printf "  make docker-frontend-check Run Docker lint, tests, and build\n"
-	@printf "  make docker-ai-test    Run AI server tests in Docker\n"
-	@printf "  make docker-ai-lint    Run AI server lint in Docker\n"
-	@printf "  make docker-ai-check   Run AI server lint and tests in Docker\n"
+	@printf "\n"
+	@printf "  ── 개별 서비스 컨트롤 ──\n"
+	@printf "  make frontend-up / frontend-down\n"
+	@printf "  make ai-up / ai-down\n"
+	@printf "  make llm-up / llm-down\n"
+
+# ─────────────────────────────────────────────────────────
+#  전체 스택 (한 번에)
+# ─────────────────────────────────────────────────────────
+
+.PHONY: up
+up:
+	$(COMPOSE) up -d
+	@echo ""
+	@echo "✓ Stack starting. Tail logs with 'make logs'."
+	@echo "  frontend:    http://localhost:5173"
+	@echo "  ai-server:   http://localhost:8000"
+	@echo "  backend:     http://localhost:8080"
+	@echo "  llm-runtime: http://localhost:11434"
+
+.PHONY: down
+down:
+	$(COMPOSE) down
+
+.PHONY: logs
+logs:
+	$(COMPOSE) logs -f --tail=50
+
+.PHONY: ps
+ps:
+	$(COMPOSE) ps
+
+.PHONY: restart
+restart: down up
+
+.PHONY: build
+build:
+	$(COMPOSE) build
+
+# ─────────────────────────────────────────────────────────
+#  Qwen 통합 테스트
+# ─────────────────────────────────────────────────────────
+
+# pytest 통합 테스트. 실제 Ollama 호출 → 케이스당 ~25-30초.
+.PHONY: qwen-test
+qwen-test:
+	$(COMPOSE) up -d llm-runtime
+	$(COMPOSE) run --rm ai-server pytest -m integration tests/integration -v -s
+
+# curl로 빠른 smoke test (자본금 자연어 1회 호출).
+.PHONY: qwen-smoke
+qwen-smoke:
+	@echo "[smoke] starting session..."
+	@SID=$$(curl -fs -X POST http://localhost:8000/chat \
+	  -H "Content-Type: application/json" \
+	  -d '{"session_id":null,"raw":{}}' | python3 -c "import sys,json; print(json.load(sys.stdin)['session_id'])"); \
+	echo "[smoke] session_id=$$SID"; \
+	echo "[smoke] sending '2억 정도 있어요' (Qwen 호출, 25-30초 소요)..."; \
+	time curl -fs -X POST http://localhost:8000/chat \
+	  -H "Content-Type: application/json" \
+	  -d "{\"session_id\":\"$$SID\",\"raw\":{},\"raw_message\":\"2억 정도 있어요\"}" \
+	  | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d,ensure_ascii=False,indent=2))"
+
+.PHONY: llm-list
+llm-list:
+	$(COMPOSE) exec llm-runtime ollama list
+
+.PHONY: llm-pull
+llm-pull:
+	$(COMPOSE) exec llm-runtime sh -c 'ollama pull "$${OLLAMA_MODEL:-qwen3.5:4b}"'
+
+# ─────────────────────────────────────────────────────────
+#  Frontend (host)
+# ─────────────────────────────────────────────────────────
 
 .PHONY: frontend-install
 frontend-install:
@@ -62,6 +146,10 @@ frontend-lint:
 .PHONY: frontend-check
 frontend-check: frontend-lint frontend-test frontend-build
 
+# ─────────────────────────────────────────────────────────
+#  Frontend (Docker)
+# ─────────────────────────────────────────────────────────
+
 .PHONY: docker-build
 docker-build:
 	$(COMPOSE) build frontend ai-server backend
@@ -70,17 +158,46 @@ docker-build:
 docker-frontend-install:
 	$(COMPOSE) run --rm frontend npm install
 
-.PHONY: docker-up
-docker-up:
-	$(COMPOSE) up frontend ai-server
+.PHONY: docker-frontend-test
+docker-frontend-test:
+	$(COMPOSE) run --rm frontend npm run test
 
-.PHONY: docker-up-detached
-docker-up-detached:
-	$(COMPOSE) up -d frontend ai-server
+.PHONY: docker-frontend-lint
+docker-frontend-lint:
+	$(COMPOSE) run --rm frontend npm run lint
 
-.PHONY: docker-down
-docker-down:
-	$(COMPOSE) down
+.PHONY: docker-frontend-build
+docker-frontend-build:
+	$(COMPOSE) run --rm frontend npm run build
+
+.PHONY: docker-frontend-check
+docker-frontend-check: docker-frontend-lint docker-frontend-test docker-frontend-build
+
+# ─────────────────────────────────────────────────────────
+#  AI server (Docker)
+# ─────────────────────────────────────────────────────────
+
+# Default pytest run (excludes integration tests via pyproject addopts).
+.PHONY: ai-test
+ai-test:
+	$(COMPOSE) run --rm ai-server pytest
+
+.PHONY: ai-lint
+ai-lint:
+	$(COMPOSE) run --rm ai-server ruff check app tests
+
+.PHONY: ai-check
+ai-check: ai-lint ai-test
+
+# legacy aliases
+.PHONY: docker-ai-test docker-ai-lint docker-ai-check
+docker-ai-test: ai-test
+docker-ai-lint: ai-lint
+docker-ai-check: ai-check
+
+# ─────────────────────────────────────────────────────────
+#  데이터베이스 (Docker, develop branch에서 합류)
+# ─────────────────────────────────────────────────────────
 
 .PHONY: docker-db-up
 docker-db-up:
@@ -112,28 +229,43 @@ docker-db-shell:
 docker-down-volumes:
 	$(COMPOSE) down -v
 
-.PHONY: docker-frontend-test
-docker-frontend-test:
-	$(COMPOSE) run --rm frontend npm run test
+# ─────────────────────────────────────────────────────────
+#  개별 서비스 컨트롤
+# ─────────────────────────────────────────────────────────
 
-.PHONY: docker-frontend-lint
-docker-frontend-lint:
-	$(COMPOSE) run --rm frontend npm run lint
+.PHONY: frontend-up
+frontend-up:
+	$(COMPOSE) up -d frontend
 
-.PHONY: docker-frontend-build
-docker-frontend-build:
-	$(COMPOSE) run --rm frontend npm run build
+.PHONY: frontend-down
+frontend-down:
+	$(COMPOSE) stop frontend
 
-.PHONY: docker-frontend-check
-docker-frontend-check: docker-frontend-lint docker-frontend-test docker-frontend-build
+.PHONY: ai-up
+ai-up:
+	$(COMPOSE) up -d ai-server
 
-.PHONY: docker-ai-test
-docker-ai-test:
-	$(COMPOSE) run --rm ai-server pytest
+.PHONY: ai-down
+ai-down:
+	$(COMPOSE) stop ai-server
 
-.PHONY: docker-ai-lint
-docker-ai-lint:
-	$(COMPOSE) run --rm ai-server ruff check app tests
+.PHONY: llm-up
+llm-up:
+	$(COMPOSE) up -d llm-runtime
 
-.PHONY: docker-ai-check
-docker-ai-check: docker-ai-lint docker-ai-test
+.PHONY: llm-down
+llm-down:
+	$(COMPOSE) stop llm-runtime
+
+# ─────────────────────────────────────────────────────────
+#  legacy aliases (이전 README/스크립트 호환)
+# ─────────────────────────────────────────────────────────
+
+.PHONY: docker-up docker-up-detached docker-down app-up app-down app-check
+docker-up:
+	$(COMPOSE) up
+docker-up-detached: up
+docker-down: down
+app-up: up
+app-down: down
+app-check: docker-frontend-check

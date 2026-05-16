@@ -1,0 +1,22 @@
+services:
+  llm-runtime:
+    image: vllm/vllm-openai:latest
+    ports:
+      - "8001:8000"
+    environment:
+      HF_HOME: /models
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      - llm_models:/models
+    command:
+      - --model
+      - ${OPENAI_MODEL:-Qwen/Qwen3.5-2B}
+      - --served-model-name
+      - ${OPENAI_MODEL:-Qwen/Qwen3.5-2B}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+
+volumes:
+  llm_models:

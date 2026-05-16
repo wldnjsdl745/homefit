@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { ChatGatewayFactory, type ChatGateway } from "../api/chat";
 import { IdFactory } from "../lib/idFactory";
 import { UserInputParser } from "../lib/userInputParser";
-import type { BotMessage, ChatMessage, ChatResponse, Conditions } from "../types/chat";
+import type { BotMessage, ChatMessage, ChatRequest, ChatResponse, Conditions } from "../types/chat";
 
 type ChatStatus = "idle" | "waiting" | "error";
 
@@ -11,11 +11,12 @@ type ChatState = {
   messages: ChatMessage[];
   status: ChatStatus;
   lastRaw: Conditions | null;
+  lastRawMessage: string | null;
   conditions: Conditions;
 };
 
 type ChatAction =
-  | { type: "request"; raw: Conditions | null }
+  | { type: "request"; raw: Conditions | null; rawMessage?: string | null }
   | { type: "user_message"; message: ChatMessage }
   | { type: "response_meta"; response: ChatResponse }
   | { type: "bot_message"; message: ChatMessage; done: boolean }
@@ -27,6 +28,7 @@ const initialState: ChatState = {
   messages: [],
   status: "idle",
   lastRaw: null,
+  lastRawMessage: null,
   conditions: {},
 };
 
@@ -37,6 +39,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         status: "waiting",
         lastRaw: action.raw,
+        lastRawMessage: action.rawMessage ?? null,
         conditions: action.raw ? { ...state.conditions, ...action.raw } : state.conditions,
       };
     case "user_message":
@@ -86,12 +89,13 @@ export class ChatMessageFactory {
     };
   }
 
-  userMessage(raw: Conditions, label: string, chipId?: string): ChatMessage {
+  userMessage(raw: Conditions, label: string, rawMessage?: string, chipId?: string): ChatMessage {
     return {
       id: this.idFactory.next("user"),
       ts: Date.now(),
       role: "user",
       raw,
+      rawMessage,
       label,
       chipId,
     };
@@ -152,23 +156,36 @@ export function useChat(options: UseChatOptions = {}) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const hasBootstrappedRef = useRef(false);
 
-  const sendRaw = useCallback(
-    async (raw: Conditions, userLabel?: string, chipId?: string) => {
+  const sendRequest = useCallback(
+    async (
+      request: Pick<ChatRequest, "raw" | "raw_message">,
+      userLabel?: string,
+      chipId?: string,
+    ) => {
       if (state.status === "waiting") {
         return;
       }
 
-      dispatch({ type: "request", raw });
+      dispatch({ type: "request", raw: request.raw, rawMessage: request.raw_message });
 
       if (userLabel) {
         dispatch({
           type: "user_message",
-          message: messageFactory.userMessage(raw, userLabel, chipId),
+          message: messageFactory.userMessage(
+            request.raw,
+            userLabel,
+            request.raw_message ?? undefined,
+            chipId,
+          ),
         });
       }
 
       try {
-        const response = await gateway.send({ session_id: state.sessionId, raw });
+        const response = await gateway.send({
+          session_id: state.sessionId,
+          raw: request.raw,
+          raw_message: request.raw_message,
+        });
         dispatch({ type: "response_meta", response });
         await sequencer.play(response.bot_messages, (botMessage, done) => {
           dispatch({
@@ -184,7 +201,7 @@ export function useChat(options: UseChatOptions = {}) {
     [gateway, messageFactory, sequencer, state.sessionId, state.status],
   );
 
-  const start = useCallback(() => sendRaw({}), [sendRaw]);
+  const start = useCallback(() => sendRequest({ raw: {} }), [sendRequest]);
 
   const restart = useCallback(() => {
     hasBootstrappedRef.current = false;
@@ -192,27 +209,18 @@ export function useChat(options: UseChatOptions = {}) {
   }, []);
 
   const retry = useCallback(async () => {
-    await sendRaw(state.lastRaw ?? {});
-  }, [sendRaw, state.lastRaw]);
+    await sendRequest({
+      raw: state.lastRaw ?? {},
+      raw_message: state.lastRawMessage,
+    });
+  }, [sendRequest, state.lastRaw, state.lastRawMessage]);
 
   const submitText = useCallback(
     async (input: string) => {
-      try {
-        const raw = inputParser.parse(state.conditions, input);
-        await sendRaw(raw, input.trim());
-      } catch {
-        dispatch({
-          type: "error",
-          message: messageFactory.botMessage({
-            type: "bot.text",
-            content: state.conditions.budget_max
-              ? "전세 또는 월세로 입력해주세요."
-              : "숫자만 입력해주세요.",
-          }),
-        });
-      }
+      const parsed = inputParser.parse(state.conditions, input);
+      await sendRequest(parsed, input.trim());
     },
-    [inputParser, messageFactory, sendRaw, state.conditions],
+    [inputParser, sendRequest, state.conditions],
   );
 
   useEffect(() => {

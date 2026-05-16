@@ -91,3 +91,40 @@ make docker-ai-check
 make docker-ai-lint
 make docker-ai-test
 ```
+
+### 앱 / AI / LLM 분리 실행
+
+프론트 앱 스택만 실행합니다. Backend 서비스가 compose에 추가되면 같은 app stack에 붙이면 됩니다.
+
+```bash
+make app-up
+```
+
+AI 서버만 실행합니다.
+
+```bash
+make ai-up
+```
+
+Qwen 모델 런타임은 별도 compose 파일로 실행합니다. 기본 모델은 `Qwen/Qwen3.5-2B`이며 OpenAI-compatible API를 제공합니다.
+
+```bash
+make llm-up
+```
+
+모델 캐시 확인 또는 다운로드:
+
+```bash
+make llm-model-check
+```
+
+Qwen provider를 AI 서버에서 의미 추출용으로 사용하려면 아래 환경변수를 설정합니다.
+
+```bash
+AI_PROVIDER=qwen
+OPENAI_BASE_URL=http://llm-runtime:8000/v1
+OPENAI_MODEL=Qwen/Qwen3.5-2B
+LLM_PROMPT_STYLE=hermes
+```
+
+Qwen/Hermes는 사용자 자연어를 `raw conditions`로 추출하는 데만 사용합니다. 지역 추천, 필터링, 정렬은 Backend 책임입니다.
