@@ -17,6 +17,13 @@ public interface HousingTransactionRepository extends JpaRepository<HousingTrans
               and (
                 :budgetMaxInManwon is null
                 or (
+                  :dealType = 'sale'
+                  and ht.salePriceAmount is not null
+                  and ht.salePriceAmount <= :budgetMaxInManwon
+                )
+                or (
+                  :dealType <> 'sale'
+                  and
                   ht.depositAmount is not null
                   and ht.depositAmount <= :budgetMaxInManwon
                 )

@@ -118,7 +118,15 @@ class InternalApiTests {
     }
 
     @Test
-    void invalidDealTypeReturnsBadRequest() throws Exception {
+    void filterSaleUsesSalePriceAmountWithinBudgetInManwon() throws Exception {
+        long gangnam = insertRegion("서울특별시", "11680", "강남", "001", "역삼동");
+        long mapo = insertRegion("서울특별시", "11440", "마포", "002", "공덕동");
+        long yongsan = insertRegion("서울특별시", "11170", "용산", "003", "한남동");
+
+        insertSaleTransactions(gangnam, 15_000L, 3);
+        insertSaleTransactions(mapo, 18_000L, 2);
+        insertSaleTransactions(yongsan, 90_000L, 5);
+
         mockMvc.perform(post("/internal/filter")
                         .contentType(APPLICATION_JSON)
                         .content("""
@@ -129,8 +137,26 @@ class InternalApiTests {
                                   }
                                 }
                                 """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regions", hasSize(2)))
+                .andExpect(jsonPath("$.regions[0]").value("강남"))
+                .andExpect(jsonPath("$.regions[1]").value("마포"));
+    }
+
+    @Test
+    void invalidDealTypeReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/internal/filter")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "conditions": {
+                                    "budget_max": 200000000,
+                                    "deal_type": "banse"
+                                  }
+                                }
+                                """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("conditions.deal_type must be jeonse or monthly_rent."));
+                .andExpect(jsonPath("$.detail").value("conditions.deal_type must be jeonse, monthly_rent, or sale."));
     }
 
     @Test
@@ -173,6 +199,20 @@ class InternalApiTests {
                     regionId,
                     dealType,
                     depositAmount
+            );
+        }
+    }
+
+    private void insertSaleTransactions(long regionId, long salePriceAmount, int count) {
+        for (int i = 0; i < count; i++) {
+            jdbcTemplate.update("""
+                            insert into housing_transactions (
+                              region_id, deal_type, sale_price_amount, deposit_amount, monthly_rent, contract_date
+                            )
+                            values (?, 'sale', ?, null, null, date '2026-04-25')
+                            """,
+                    regionId,
+                    salePriceAmount
             );
         }
     }
