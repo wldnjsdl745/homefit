@@ -1,4 +1,13 @@
-from app.schemas import BotMessage, BotTextMessage, Conditions
+from app.schemas import BotMessage, BotQuickRepliesMessage, BotTextMessage, Conditions
+from app.services.chip_catalog import (
+    CHIP_BUDGET_RESTART,
+    CHIP_DEAL_JEONSE,
+    CHIP_DEAL_MONTHLY_RENT,
+    CHIP_DEAL_SALE,
+    CHIP_RESTART,
+    CHIP_RETRY,
+    quick_replies,
+)
 from app.services.result_formatter import ResultFormatter
 
 
@@ -11,19 +20,15 @@ class MessageBuilder:
 
     def ask_deal_type(self) -> list[BotMessage]:
         return [
-            BotTextMessage(
-                type="bot.text",
-                content="전세/월세 중 어떤 걸 원하시는지 알려주세요.",
-            )
+            BotTextMessage(type="bot.text", content="전세, 월세, 매매 중 어떤 걸 원하시는지 알려주세요."),
+            BotQuickRepliesMessage(
+                type="bot.quick_replies",
+                chips=quick_replies(CHIP_DEAL_JEONSE, CHIP_DEAL_MONTHLY_RENT, CHIP_DEAL_SALE),
+            ),
         ]
 
-    def ask_preference(self) -> list[BotMessage]:
-        return [
-            BotTextMessage(
-                type="bot.text",
-                content="추가로 희망하시는 조건이 있나요?",
-            )
-        ]
+    def ask_monthly_rent(self) -> list[BotMessage]:
+        return [BotTextMessage(type="bot.text", content="월마다 나가는 월세 예산을 얼마로 생각하시나요?")]
 
     def result(
         self,
@@ -36,28 +41,30 @@ class MessageBuilder:
 
         content = result_text or self.formatter.format(conditions, regions)
         return [
-            BotTextMessage(type="bot.text", content="잠시만요..."),
             BotTextMessage(type="bot.text", content=content),
+            BotQuickRepliesMessage(
+                type="bot.quick_replies",
+                chips=quick_replies(CHIP_RESTART),
+            ),
         ]
 
     def empty_result(self) -> list[BotMessage]:
         return [
             BotTextMessage(
                 type="bot.text",
-                content="조건에 맞는 지역을 찾지 못했어요. 새 대화로 다시 입력해볼까요?",
-            )
+                content="입력한 조건에 맞는 서울 지역을 찾지 못했어요. 자본금을 다시 입력해볼까요?",
+            ),
+            BotQuickRepliesMessage(
+                type="bot.quick_replies",
+                chips=quick_replies(CHIP_BUDGET_RESTART, CHIP_RESTART),
+            ),
         ]
 
     def fallback(self) -> list[BotMessage]:
-        return [BotTextMessage(type="bot.text", content="잠시 문제가 있어요. 다시 입력해주세요.")]
-
-    def unsupported_conditions(self) -> list[BotMessage]:
         return [
-            BotTextMessage(
-                type="bot.text",
-                content=(
-                    "죄송해요, 아직 해당 조건은 이해하지 못해요. "
-                    "예산과 전세/월세를 알려주세요."
-                ),
-            )
+            BotTextMessage(type="bot.text", content="죄송해요, 다시 시도해주세요."),
+            BotQuickRepliesMessage(
+                type="bot.quick_replies",
+                chips=quick_replies(CHIP_RETRY),
+            ),
         ]

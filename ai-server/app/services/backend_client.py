@@ -94,12 +94,16 @@ class MockBackendClient(BackendClient):
         return UpsertConditionsResponse(session_id=next_session_id, conditions=merged)
 
     async def filter_regions(self, conditions: Conditions) -> FilterRegionsResponse:
-        # Region recommendation stays a backend responsibility. preference_text is intentionally
-        # ignored by the mock filter until the real backend defines how to use it.
         if conditions.budget_max is not None and conditions.budget_max < 60_000_000:
             return FilterRegionsResponse(regions=[])
 
         if conditions.deal_type == "jeonse":
-            return FilterRegionsResponse(regions=["분당", "성남", "경기도"])
+            return FilterRegionsResponse(regions=["마포구", "은평구", "서대문구"])
 
-        return FilterRegionsResponse(regions=["봉천동", "신림동", "사당동"])
+        if conditions.deal_type == "monthly_rent":
+            return FilterRegionsResponse(regions=["관악구", "동작구", "영등포구"])
+
+        if conditions.deal_type == "sale":
+            return FilterRegionsResponse(regions=["노원구", "도봉구", "강북구"])
+
+        return FilterRegionsResponse(regions=["마포구", "은평구", "서대문구"])
