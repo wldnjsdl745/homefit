@@ -5,6 +5,10 @@ COMPOSE := docker compose
 SEED_DATA ?= seed-data.sql
 SEED_DIR ?= db/seed
 SEED_ARCHIVE ?= $(SEED_DIR)/seed-data.sql.gz
+LOCAL_MYSQL_HOST ?= localhost
+LOCAL_MYSQL_PORT ?= 3306
+LOCAL_MYSQL_USER ?= root
+LOCAL_MYSQL_DATABASE ?= homefit
 
 .PHONY: help
 help:
@@ -41,6 +45,7 @@ help:
 	@printf "  make docker-db-up       Run Docker MySQL only\n"
 	@printf "  make docker-db-pack     Compress seed-data.sql for automatic Docker seed import\n"
 	@printf "  make docker-db-import   Import db/seed seed data into Docker MySQL when empty\n"
+	@printf "  make docker-db-refresh-from-local Dump local MySQL data and force-import it into Docker MySQL\n"
 	@printf "  make docker-db-backup   Export Docker MySQL data to backup-data.sql\n"
 	@printf "  make docker-db-shell    Open Docker MySQL shell\n"
 	@printf "  make docker-down-volumes Stop services and remove Docker volumes\n"
@@ -215,6 +220,19 @@ docker-db-import:
 	@test -f $(SEED_ARCHIVE) -o -f $(SEED_DIR)/seed-data.sql || (printf "$(SEED_ARCHIVE) or $(SEED_DIR)/seed-data.sql not found. Run make docker-db-pack first.\n" && exit 1)
 	$(COMPOSE) up -d backend
 	$(COMPOSE) run --rm db-seed
+
+.PHONY: docker-db-refresh-from-local
+docker-db-refresh-from-local:
+	@printf "Dumping local MySQL $(LOCAL_MYSQL_DATABASE).regions and $(LOCAL_MYSQL_DATABASE).housing_transactions into $(SEED_DATA)...\n"
+	mysqldump --no-create-info --complete-insert --single-transaction \
+	  -h $(LOCAL_MYSQL_HOST) \
+	  -P $(LOCAL_MYSQL_PORT) \
+	  -u $(LOCAL_MYSQL_USER) \
+	  -p \
+	  $(LOCAL_MYSQL_DATABASE) regions housing_transactions > $(SEED_DATA)
+	$(MAKE) docker-db-pack
+	$(COMPOSE) up -d --build backend
+	$(COMPOSE) run --rm -e FORCE_SEED_IMPORT=true db-seed
 
 .PHONY: docker-db-backup
 docker-db-backup:

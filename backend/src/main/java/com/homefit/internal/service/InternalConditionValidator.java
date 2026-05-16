@@ -9,7 +9,7 @@ import java.util.Set;
 public class InternalConditionValidator {
 
     private static final long MAX_BUDGET = 10_000_000_000L;
-    private static final Set<String> DEAL_TYPES = Set.of("jeonse", "monthly_rent");
+    private static final Set<String> DEAL_TYPES = Set.of("jeonse", "monthly_rent", "sale");
 
     public void validatePartial(Map<String, Object> conditions) {
         Object budgetMax = conditions.get("budget_max");
@@ -58,7 +58,7 @@ public class InternalConditionValidator {
     private String readDealType(Map<String, Object> conditions) {
         Object value = conditions.get("deal_type");
         if (!(value instanceof String dealType) || !DEAL_TYPES.contains(dealType)) {
-            throw new InvalidInternalApiRequestException("conditions.deal_type must be jeonse or monthly_rent.");
+            throw new InvalidInternalApiRequestException("conditions.deal_type must be jeonse, monthly_rent, or sale.");
         }
 
         return dealType;
