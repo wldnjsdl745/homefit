@@ -5,10 +5,10 @@
 - 문서 상태: `Draft`
 - 적용 범위: `MVP v0`
 - 기준 문서:
-  - [plan.md](../../plan.md)
-  - [backend-mvp.md](../../backend-mvp.md)
-  - [ai-backend.md](../../ai-backend.md)
-  - [ai-frontend.md](../../ai-frontend.md)
+  - [plan.md](../drafts/plan.md)
+  - [backend-mvp.md](../drafts/backend-mvp.md)
+  - [ai-backend.md](../drafts/ai-backend.md)
+  - [ai-frontend.md](../drafts/ai-frontend.md)
 
 ---
 
