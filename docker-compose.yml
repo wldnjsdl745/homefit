@@ -1,0 +1,124 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_USE_MOCK_CHAT: ${VITE_USE_MOCK_CHAT:-false}
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+    depends_on:
+      - ai-server
+
+  ai-server:
+    build:
+      context: ./ai-server
+    ports:
+      - "8000:8000"
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
+      AI_BACKEND_MODE: ${AI_BACKEND_MODE:-http}
+      # AI_PROVIDER:
+      #   - "openai_compatible" (or "qwen"): OpenAI 호환 /v1/chat/completions
+      #     (OpenRouter / Claude API / GPT 등에서 사용. 디폴트.)
+      #   - "ollama_native" (or "qwen_native"): Ollama /api/chat + think:false
+      #     (로컬 Ollama 모드. llm-runtime 컨테이너도 같이 띄워야 함.)
+      #   - "dummy": LLM 미사용 (칩 흐름만)
+      AI_PROVIDER: ${AI_PROVIDER:-openai_compatible}
+      AI_DUMMY_FAIL: ${AI_DUMMY_FAIL:-false}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
+      # OpenRouter 디폴트. .env에서 OPENAI_API_KEY 설정해야 동작.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-EMPTY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-qwen/qwen-2.5-72b-instruct:free}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-30000}
+      LLM_PROMPT_STYLE: ${LLM_PROMPT_STYLE:-hermes}
+      # OpenRouter 분석/랭킹용 (선택)
+      OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-}
+      OPENROUTER_X_TITLE: ${OPENROUTER_X_TITLE:-Homefit}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173}
+      PYTHONPATH: /app
+    volumes:
+      - ./ai-server/app:/app/app
+      - ./ai-server/tests:/app/tests
+      - ./ai-server/pyproject.toml:/app/pyproject.toml:ro
+    command: uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      backend:
+        condition: service_started
+      db-seed:
+        condition: service_completed_successfully
+
+  llm-runtime:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      # 호스트 ~/.ollama 를 직접 마운트 — 받은 모델이 호스트 파일시스템에 영구 저장됨.
+      # 컨테이너 재생성 시에도 모델 유지 (Ollama가 sparse partial을 잃지 않음).
+      - ${HOME}/.ollama:/root/.ollama
+      - ./ai-server/scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_MODEL: ${OPENAI_MODEL:-qwen3.5:4b}
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:mysql://db:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-homefit}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-homefit}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-homefit}
+      MYSQL_USER: ${MYSQL_USER:-homefit}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-homefit}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-homefit-root}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER:-homefit}", "-p${MYSQL_PASSWORD:-homefit}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  db-seed:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-homefit}
+      MYSQL_USER: ${MYSQL_USER:-homefit}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-homefit}
+    volumes:
+      - ./db/seed:/seed:ro
+    entrypoint: ["/bin/sh", "/seed/import-if-needed.sh"]
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  frontend_node_modules:
+  mysql_data:
+  # ollama_models named volume은 더 이상 사용하지 않음 (호스트 ~/.ollama bind 마운트로 대체)
