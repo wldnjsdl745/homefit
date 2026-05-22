@@ -3,7 +3,7 @@
 > BE는 **AI 서버에서만 호출되는 내부 API**. FE에 직접 노출 ❌.
 > 책임: conditions 영속화 + DB 필터링 (계산).
 > AI 서버 측 호출자는 [ai-backend.md](ai-backend.md), 전체 설계는 [plan.md](plan.md).
-> 기준 ERD는 [docs/erd/ERD2.md](docs/data/ERD.md)로 고정한다.
+> 기준 ERD는 [docs/erd/ERD2.md](../data/ERD.md)로 고정한다.
 
 ---
 
@@ -34,7 +34,7 @@
 ## 데이터 모델 (단일 테이블 중심)
 
 > 단일 테이블 `chat_messages`에 raw + conditions JSON 저장.
-> 기준 ERD는 [docs/erd/ERD2.md](docs/data/ERD.md)와 [docs/schema/schema.sql](docs/data/schema.sql)이다.
+> 기준 ERD는 [docs/erd/ERD2.md](../data/ERD.md)와 [docs/schema/schema.sql](docs/data/schema.sql)이다.
 
 ```
 chat_messages
@@ -67,7 +67,7 @@ housing_transactions  (MOLIT #11848613)
 ### B0. 합의
 - [x] [plan.md §4](plan.md) FE↔AI 계약 확인
 - [x] [ai-backend.md](ai-backend.md) AI↔BE 내부 계약 확인
-- [x] 기준 ERD를 [docs/erd/ERD.md](docs/data/ERD.md)로 확정
+- [x] 기준 ERD를 [docs/erd/ERD.md](../data/ERD.md)로 확정
 
 ### B1. DB / Entity
 - [x] `application.yaml` MySQL 설정
