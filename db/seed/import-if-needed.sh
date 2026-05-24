@@ -8,7 +8,15 @@ DB_USER="${MYSQL_USER:-homefit}"
 DB_PASSWORD="${MYSQL_PASSWORD:-homefit}"
 SEED_DIR="${SEED_DIR:-/seed}"
 SEED_FILE="${SEED_FILE:-}"
+FORCE_SEED_IMPORT="${FORCE_SEED_IMPORT:-false}"
 MAX_ATTEMPTS="${SEED_WAIT_ATTEMPTS:-60}"
+
+force_import=false
+case "$FORCE_SEED_IMPORT" in
+  1|true|TRUE|yes|YES)
+    force_import=true
+    ;;
+esac
 
 mysql_cmd() {
   mysql \
@@ -37,9 +45,13 @@ if [ "$attempt" -gt "$MAX_ATTEMPTS" ]; then
 fi
 
 transaction_count="$(cat /tmp/housing_transactions_count)"
-if [ "$transaction_count" -gt 0 ]; then
+if [ "$transaction_count" -gt 0 ] && [ "$force_import" != "true" ]; then
   echo "Seed import skipped. housing_transactions already has $transaction_count rows."
   exit 0
+fi
+
+if [ "$transaction_count" -gt 0 ]; then
+  echo "Force seed import enabled. Existing seed tables will be truncated before import."
 fi
 
 if [ -n "$SEED_FILE" ]; then

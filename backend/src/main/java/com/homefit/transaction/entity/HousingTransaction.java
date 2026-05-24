@@ -30,6 +30,9 @@ public class HousingTransaction {
     @Column(name = "deposit_amount")
     private Long depositAmount;
 
+    @Column(name = "sale_price_amount")
+    private Long salePriceAmount;
+
     @Column(name = "monthly_rent")
     private Integer monthlyRent;
 
