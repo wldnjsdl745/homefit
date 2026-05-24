@@ -15,18 +15,12 @@ help:
 	@printf "Homefit commands\n"
 	@printf "\n"
 	@printf "  ── 전체 스택 (한 번에) ──\n"
-	@printf "  make up                 Bring up the full stack (frontend / ai-server / llm-runtime / backend / db) detached\n"
+	@printf "  make up                 Bring up the full stack (frontend / ai-server / backend / db) detached\n"
 	@printf "  make down               Stop and remove all stack containers\n"
 	@printf "  make logs               Tail logs for the full stack\n"
 	@printf "  make ps                 Show stack container status\n"
 	@printf "  make restart            Restart the full stack\n"
 	@printf "  make build              Build all docker images\n"
-	@printf "\n"
-	@printf "  ── Qwen 통합 테스트 ──\n"
-	@printf "  make qwen-test          Run Qwen integration tests against the running llm-runtime\n"
-	@printf "  make qwen-smoke         Quick curl-based smoke test against /chat with raw_message\n"
-	@printf "  make llm-list           List models inside the llm-runtime\n"
-	@printf "  make llm-pull           Manually pull \$$OPENAI_MODEL into llm-runtime\n"
 	@printf "\n"
 	@printf "  ── Frontend ──\n"
 	@printf "  make frontend-install   Install frontend dependencies\n"
@@ -53,7 +47,6 @@ help:
 	@printf "  ── 개별 서비스 컨트롤 ──\n"
 	@printf "  make frontend-up / frontend-down\n"
 	@printf "  make ai-up / ai-down\n"
-	@printf "  make llm-up / llm-down\n"
 
 # ─────────────────────────────────────────────────────────
 #  전체 스택 (한 번에)
@@ -67,7 +60,6 @@ up:
 	@echo "  frontend:    http://localhost:5173"
 	@echo "  ai-server:   http://localhost:8000"
 	@echo "  backend:     http://localhost:8080"
-	@echo "  llm-runtime: http://localhost:11434"
 
 .PHONY: down
 down:
@@ -87,38 +79,6 @@ restart: down up
 .PHONY: build
 build:
 	$(COMPOSE) build
-
-# ─────────────────────────────────────────────────────────
-#  Qwen 통합 테스트
-# ─────────────────────────────────────────────────────────
-
-# pytest 통합 테스트. 실제 Ollama 호출 → 케이스당 ~25-30초.
-.PHONY: qwen-test
-qwen-test:
-	$(COMPOSE) up -d llm-runtime
-	$(COMPOSE) run --rm ai-server pytest -m integration tests/integration -v -s
-
-# curl로 빠른 smoke test (자본금 자연어 1회 호출).
-.PHONY: qwen-smoke
-qwen-smoke:
-	@echo "[smoke] starting session..."
-	@SID=$$(curl -fs -X POST http://localhost:8000/chat \
-	  -H "Content-Type: application/json" \
-	  -d '{"session_id":null,"raw":{}}' | python3 -c "import sys,json; print(json.load(sys.stdin)['session_id'])"); \
-	echo "[smoke] session_id=$$SID"; \
-	echo "[smoke] sending '2억 정도 있어요' (Qwen 호출, 25-30초 소요)..."; \
-	time curl -fs -X POST http://localhost:8000/chat \
-	  -H "Content-Type: application/json" \
-	  -d "{\"session_id\":\"$$SID\",\"raw\":{},\"raw_message\":\"2억 정도 있어요\"}" \
-	  | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d,ensure_ascii=False,indent=2))"
-
-.PHONY: llm-list
-llm-list:
-	$(COMPOSE) exec llm-runtime ollama list
-
-.PHONY: llm-pull
-llm-pull:
-	$(COMPOSE) exec llm-runtime sh -c 'ollama pull "$${OLLAMA_MODEL:-qwen3.5:4b}"'
 
 # ─────────────────────────────────────────────────────────
 #  Frontend (host)
@@ -266,14 +226,6 @@ ai-up:
 .PHONY: ai-down
 ai-down:
 	$(COMPOSE) stop ai-server
-
-.PHONY: llm-up
-llm-up:
-	$(COMPOSE) up -d llm-runtime
-
-.PHONY: llm-down
-llm-down:
-	$(COMPOSE) stop llm-runtime
 
 # ─────────────────────────────────────────────────────────
 #  legacy aliases (이전 README/스크립트 호환)
