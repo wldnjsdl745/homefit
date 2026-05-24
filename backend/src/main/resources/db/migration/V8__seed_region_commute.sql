@@ -1,7 +1,7 @@
 -- 서울 25개 구 → 5개 주요 목적지 대중교통 평균 통근 시간 (분)
 -- 기준: 구 내 주요 지점 → 목적지 역까지 대중교통 최단 경로 평균
 -- gangnam=강남역, yeouido=여의도역, gwanghwamun=광화문역, hongdae=홍대입구역, jamsil=잠실역
-INSERT INTO region_commute (sigungu, destination_key, avg_minutes) VALUES
+INSERT IGNORE INTO region_commute (sigungu, destination_key, avg_minutes) VALUES
   -- 강남구
   ('강남구', 'gangnam',     8), ('강남구', 'yeouido',    30), ('강남구', 'gwanghwamun', 32), ('강남구', 'hongdae',    38), ('강남구', 'jamsil',    20),
   -- 서초구

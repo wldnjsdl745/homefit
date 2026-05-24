@@ -95,6 +95,12 @@ src/main/resources/db/migration
 - `V1__init.sql`
 - `V2__increase_chat_message_created_at_precision.sql`
 - `V3__add_sale_transactions.sql`
+- `V4__add_region_transit.sql`
+- `V5__add_region_commute.sql`
+- `V6__add_region_jeonse_safety.sql`
+- `V7__seed_region_transit.sql`
+- `V8__seed_region_commute.sql`
+- `V9__seed_region_jeonse_safety.sql`
 
 ## Environment Variables
 
@@ -103,8 +109,7 @@ src/main/resources/db/migration
 | `SPRING_DATASOURCE_URL` | MySQL JDBC URL | 개발 Docker Compose에서는 `jdbc:mysql://db:3306/homefit?...`, 운영에서는 RDS endpoint |
 | `SPRING_DATASOURCE_USERNAME` | DB 사용자명 | 개발 기본값 `homefit` |
 | `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 | 개발 기본값 `homefit` |
-| `SPRING_FLYWAY_BASELINE_ON_MIGRATE` | 기존 스키마가 있는 DB를 Flyway 기준점으로 등록할지 여부 | `false` |
-| `SPRING_FLYWAY_BASELINE_VERSION` | baseline으로 간주할 migration version | `3` |
+| `SPRING_FLYWAY_BASELINE_VERSION` | 기존 V3 스키마 자동 채택 시 baseline으로 간주할 migration version | `3` |
 
 개발 Docker Compose에서는 기본적으로 아래 DB를 사용합니다.
 
@@ -118,12 +123,8 @@ jdbc:mysql://db:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&a
 jdbc:mysql://your-rds-endpoint.ap-northeast-2.rds.amazonaws.com:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
 ```
 
-RDS에 이미 `regions`, `housing_transactions`, `chat_messages` 테이블이 있고 이 구조가 `V1`~`V3` migration 결과와 같다면, 최초 연결 시에만 아래 값을 사용해 Flyway 기준점을 등록할 수 있습니다.
-
-```sh
-SPRING_FLYWAY_BASELINE_ON_MIGRATE=true
-SPRING_FLYWAY_BASELINE_VERSION=3
-```
+RDS에 이미 `regions`, `housing_transactions`, `chat_messages` 테이블과 `housing_transactions.sale_price_amount` 컬럼이 있고 Flyway 이력이 없다면, Backend는 현재 스키마를 자동으로 `V3` baseline으로 등록합니다.
+이후 `V4`부터의 migration만 실행합니다.
 
 ## Local Run
 

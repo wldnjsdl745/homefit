@@ -13,8 +13,7 @@ LogsDirectory=homefit
 Environment="SPRING_DATASOURCE_URL=jdbc:mysql://your-rds-endpoint.ap-northeast-2.rds.amazonaws.com:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8"
 Environment="SPRING_DATASOURCE_USERNAME=homefit"
 Environment="SPRING_DATASOURCE_PASSWORD=change-me"
-# Use only when adopting an existing RDS schema that already matches V1~V3 migrations.
-# Environment="SPRING_FLYWAY_BASELINE_ON_MIGRATE=true"
+# Existing V3 RDS schemas are automatically adopted as Flyway baseline version 3.
 # Environment="SPRING_FLYWAY_BASELINE_VERSION=3"
 Environment="JAVA_TOOL_OPTIONS=-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m"
 

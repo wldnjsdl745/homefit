@@ -74,14 +74,20 @@ make rds-count \
 주의:
 
 - RDS import 전에는 Flyway migration이 먼저 적용되어 있어야 한다.
-- 이미 테이블이 생성된 RDS를 처음 연결한다면 기존 스키마가 `V1`~`V3` migration 결과와 같은지 확인한 뒤 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`, `SPRING_FLYWAY_BASELINE_VERSION=3`을 사용한다.
+- 이미 테이블이 생성된 RDS를 처음 연결한다면 기존 스키마가 `V1`~`V3` migration 결과와 같은지 확인한다.
+- Backend는 Flyway 이력이 없고 핵심 `V3` 테이블 구조가 이미 있으면 자동으로 `V3` baseline을 등록한다.
 - seed SQL에 `truncate` 또는 `delete`가 포함되어 있으면 기존 RDS 데이터가 삭제될 수 있다.
 - 운영 데이터가 쌓인 뒤에는 import 전에 백업을 확인한다.
 
 ## 기존 RDS 데이터를 유지하고 Flyway V3로 채택
 
 RDS에 이미 대용량 데이터가 들어간 상태라면 데이터 테이블을 삭제하지 않는다.
-대신 Flyway에게 현재 RDS 스키마가 `V3`까지 적용된 상태라고 알려준다.
+Backend는 아래 구조가 이미 있으면 Flyway에게 현재 RDS 스키마가 `V3`까지 적용된 상태라고 자동 등록한다.
+
+- `regions`
+- `housing_transactions`
+- `chat_messages`
+- `housing_transactions.sale_price_amount`
 
 먼저 RDS의 Flyway 이력을 확인한다.
 
@@ -107,14 +113,8 @@ make rds-flyway-adopt-v3 \
 
 위 명령은 `regions`, `housing_transactions`, `chat_messages` 같은 데이터 테이블을 삭제하지 않고 `flyway_schema_history` 메타데이터 테이블만 삭제한다.
 
-그 다음 Backend를 아래 환경변수로 한 번 실행한다.
-
-```sh
-SPRING_FLYWAY_BASELINE_ON_MIGRATE=true
-SPRING_FLYWAY_BASELINE_VERSION=3
-```
-
-Backend가 정상 기동되면 Flyway는 기존 RDS 스키마를 `V3` baseline으로 기록하고, 이후 새 migration은 `V4`부터 적용한다.
+그 다음 Backend를 RDS 연결 정보로 실행한다.
+Backend가 정상 기동되면 Flyway는 기존 RDS 스키마를 `V3` baseline으로 기록하고, 이후 `V4`부터 적용한다.
 
 ## 로컬 MySQL 기준으로 Docker DB 새로고침
 
