@@ -1,18 +1,18 @@
-"""MOLIT 매매 실거래가 CSV → housing_transactions DB 로딩 스크립트.
+"""MOLIT 아파트 매매 실거래가 CSV → housing_transactions DB 로딩 스크립트.
 
 사용법:
   pip install pymysql pandas
-  python scripts/load_sale_transactions.py --csv data/sale_seoul_2024.csv
+  python scripts/load_sale_transactions.py --csv "아파트(매매)_실거래가_20260524170217.csv"
 
-MOLIT 다운로드 방법:
-  1. https://rtdown.molit.go.kr 접속
-  2. 거래유형: 아파트 매매 (또는 연립/다세대 매매)
-  3. 지역: 서울특별시 (전체 구 선택)
-  4. 기간: 최근 1~2년
-  5. CSV 다운로드
-
-CSV 컬럼 (MOLIT 표준):
-  시군구, 법정동, 지번, 아파트, 건축년도, 층, 전용면적, 계약년도, 계약월, 계약일, 거래금액(만원), ...
+CSV 형식 (국토부 실거래가 공개시스템 기준):
+  - 앞 15줄: 메타데이터 (헤더 전 공지/검색조건)
+  - 16번째 줄: 컬럼명
+  - 컬럼: NO, 시군구, 번지, 본번, 부번, 단지명, 전용면적(㎡),
+          계약년월, 계약일, 거래금액(만원), 동, 층, 매수자, 매도자,
+          건축년도, 도로명, 해제사유발생일, 거래유형, 중개사소재지, 등기일자
+  - 시군구 예시: "서울특별시 성북구 정릉동"
+  - 계약년월 예시: "202605"  계약일: "22"
+  - 거래금액: "60,000" (만원 단위, 쉼표 포함)
 """
 
 import argparse
@@ -23,7 +23,6 @@ from datetime import date
 import pandas as pd
 import pymysql
 
-# ── DB 연결 기본값 ───────────────────────────────────────────
 DB_CONFIG = {
     "host": "localhost",
     "port": 3307,
@@ -33,131 +32,112 @@ DB_CONFIG = {
     "charset": "utf8mb4",
 }
 
-# ── MOLIT CSV 컬럼 → DB 컬럼 매핑 ───────────────────────────
-# 국토부 실거래가 CSV는 버전마다 헤더가 조금씩 다름.
-# 아래는 가장 일반적인 컬럼명 기준.
-COL_MAP = {
-    "sigungu":      ["시군구", "시군구명"],
-    "dong":         ["법정동", "동"],
-    "building":     ["아파트", "건물명", "단지명"],
-    "built_year":   ["건축년도", "건축년"],
-    "floor":        ["층"],
-    "area":         ["전용면적", "전용 면적"],
-    "year":         ["계약년도", "년"],
-    "month":        ["계약월", "월"],
-    "day":          ["계약일", "일"],
-    "amount":       ["거래금액", "거래금액(만원)"],
-    "jibun_main":   ["본번", "지번"],
-    "jibun_sub":    ["부번"],
-}
-
-
-def find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
-    for c in candidates:
-        for col in df.columns:
-            if c in col:
-                return col
-    return None
+METADATA_ROWS = 15  # 실제 컬럼 헤더 앞 메타데이터 줄 수
 
 
 def parse_amount(val) -> int | None:
-    if pd.isna(val):
+    if pd.isna(val) or str(val).strip() in ("-", ""):
         return None
-    cleaned = re.sub(r"[,\s]", "", str(val))
     try:
-        return int(cleaned)
+        return int(re.sub(r"[,\s]", "", str(val)))
     except ValueError:
         return None
 
 
+def parse_int(val) -> int | None:
+    if pd.isna(val) or str(val).strip() in ("-", ""):
+        return None
+    try:
+        return int(str(val).strip())
+    except ValueError:
+        return None
+
+
+def parse_float(val) -> float | None:
+    if pd.isna(val) or str(val).strip() in ("-", ""):
+        return None
+    try:
+        return float(str(val).replace(",", "").strip())
+    except ValueError:
+        return None
+
+
+def split_address(addr: str) -> tuple[str, str]:
+    """'서울특별시 성북구 정릉동' → ('성북구', '정릉동')"""
+    parts = str(addr).strip().split()
+    # parts[0]=시도, parts[1]=시군구, parts[2:]=동
+    sigungu = parts[1] if len(parts) > 1 else ""
+    dong = parts[2] if len(parts) > 2 else ""
+    return sigungu, dong
+
+
 def load_csv(csv_path: str, db_config: dict, batch_size: int = 1000) -> None:
     print(f"[load] reading {csv_path}")
-    df = pd.read_csv(csv_path, encoding="cp949", dtype=str, low_memory=False)
+    df = pd.read_csv(
+        csv_path,
+        encoding="cp949",
+        skiprows=METADATA_ROWS,
+        dtype=str,
+        low_memory=False,
+    )
     df.columns = df.columns.str.strip()
     print(f"[load] rows={len(df)}, cols={list(df.columns)}")
-
-    # 컬럼 매핑
-    cols = {k: find_col(df, v) for k, v in COL_MAP.items()}
-    missing = [k for k, v in cols.items() if v is None and k in ("sigungu", "amount", "year", "month")]
-    if missing:
-        print(f"[error] 필수 컬럼 없음: {missing}")
-        print(f"  실제 컬럼: {list(df.columns)}")
-        sys.exit(1)
 
     conn = pymysql.connect(**db_config)
     cursor = conn.cursor()
 
-    # regions 캐시 (sigungu + dong → region_id)
+    # regions 캐시: (sigungu, dong) → region_id
     cursor.execute("SELECT id, sigungu, legal_dong_name FROM regions WHERE sido='서울특별시'")
     region_cache: dict[tuple, int] = {}
+    sigungu_cache: dict[str, int] = {}  # sigungu만으로 fallback
     for rid, sigungu, dong in cursor.fetchall():
         region_cache[(sigungu.strip(), dong.strip())] = rid
+        if sigungu.strip() not in sigungu_cache:
+            sigungu_cache[sigungu.strip()] = rid
 
     inserted = skipped = 0
     batch: list[tuple] = []
 
     for _, row in df.iterrows():
-        sigungu = str(row[cols["sigungu"]]).strip() if cols["sigungu"] else ""
-        dong = str(row[cols["dong"]]).strip() if cols["dong"] else ""
-        amount_manwon = parse_amount(row[cols["amount"]])
+        sigungu, dong = split_address(row.get("시군구", ""))
+        if not sigungu:
+            skipped += 1
+            continue
+
+        amount_manwon = parse_amount(row.get("거래금액(만원)"))
         if amount_manwon is None:
             skipped += 1
             continue
 
-        # sigungu에 서울특별시 포함된 경우 파싱
-        if "서울특별시" in sigungu:
-            parts = sigungu.replace("서울특별시", "").strip().split()
-            sigungu = parts[0] if parts else sigungu
-
-        region_id = region_cache.get((sigungu, dong))
-        if region_id is None:
-            # dong 없이 sigungu만으로 fallback (첫 번째 매칭)
-            region_id = next((v for (s, d), v in region_cache.items() if s == sigungu), None)
+        region_id = region_cache.get((sigungu, dong)) or sigungu_cache.get(sigungu)
         if region_id is None:
             skipped += 1
             continue
 
-        year = str(row[cols["year"]]).strip() if cols["year"] else "2024"
-        month = str(row[cols["month"]]).strip().zfill(2) if cols["month"] else "01"
-        day = str(row[cols["day"]]).strip().zfill(2) if cols["day"] else "01"
+        # 계약년월: "202605" → year=2026, month=05
+        yyyymm = str(row.get("계약년월", "")).strip()
         try:
-            contract_date = date(int(year), int(month), min(int(day), 28))
+            year = int(yyyymm[:4])
+            month = int(yyyymm[4:6])
+            day = min(parse_int(row.get("계약일")) or 1, 28)
+            contract_date = date(year, month, day)
         except (ValueError, TypeError):
-            contract_date = date(int(year) if year.isdigit() else 2024, 1, 1)
-
-        area = None
-        if cols["area"] and not pd.isna(row[cols["area"]]):
-            try:
-                area = float(str(row[cols["area"]]).replace(",", ""))
-            except ValueError:
-                pass
-
-        floor_no = None
-        if cols["floor"] and not pd.isna(row[cols["floor"]]):
-            try:
-                floor_no = int(str(row[cols["floor"]]).strip())
-            except ValueError:
-                pass
-
-        built_year = None
-        if cols["built_year"] and not pd.isna(row[cols["built_year"]]):
-            try:
-                built_year = int(str(row[cols["built_year"]]).strip())
-            except ValueError:
-                pass
-
-        building = str(row[cols["building"]]).strip() if cols["building"] and not pd.isna(row[cols["building"]]) else None
+            skipped += 1
+            continue
 
         batch.append((
             region_id,
             "sale",
-            amount_manwon,  # deposit_amount (만원 단위 — BE filter에서 변환)
-            None,           # monthly_rent
+            None,          # deposit_amount (매매는 null)
+            amount_manwon, # sale_price_amount
+            None,          # monthly_rent
             contract_date,
-            area,
-            floor_no,
-            building,
-            built_year,
+            parse_float(row.get("전용면적(㎡)")),
+            parse_int(row.get("층")),
+            str(row.get("단지명", "")).strip() or None,
+            parse_int(row.get("건축년도")),
+            str(row.get("본번", "")).strip() or None,
+            str(row.get("부번", "")).strip() or None,
         ))
 
         if len(batch) >= batch_size:
@@ -181,9 +161,10 @@ def _insert_batch(cursor, batch: list[tuple]) -> None:
     cursor.executemany(
         """
         INSERT INTO housing_transactions
-          (region_id, deal_type, deposit_amount, monthly_rent,
-           contract_date, rental_area, floor_no, building_name, built_year)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+          (region_id, deal_type, deposit_amount, sale_price_amount, monthly_rent,
+           contract_date, rental_area, floor_no, building_name, built_year,
+           main_bun, sub_bun)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         batch,
     )
