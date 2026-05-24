@@ -1,4 +1,10 @@
-from app.schemas import BotMessage, BotQuickRepliesMessage, BotTextMessage, Conditions
+from app.schemas import (
+    BotMessage,
+    BotQuickRepliesMessage,
+    BotTextMessage,
+    Conditions,
+    ErrorResponse,
+)
 from app.services.chip_catalog import (
     CHIP_BUDGET_RESTART,
     CHIP_DEAL_JEONSE,
@@ -20,7 +26,10 @@ class MessageBuilder:
 
     def ask_deal_type(self) -> list[BotMessage]:
         return [
-            BotTextMessage(type="bot.text", content="전세, 월세, 매매 중 어떤 걸 원하시는지 알려주세요."),
+            BotTextMessage(
+                type="bot.text",
+                content="전세, 월세, 매매 중 어떤 걸 원하시는지 알려주세요.",
+            ),
             BotQuickRepliesMessage(
                 type="bot.quick_replies",
                 chips=quick_replies(CHIP_DEAL_JEONSE, CHIP_DEAL_MONTHLY_RENT, CHIP_DEAL_SALE),
@@ -28,7 +37,12 @@ class MessageBuilder:
         ]
 
     def ask_monthly_rent(self) -> list[BotMessage]:
-        return [BotTextMessage(type="bot.text", content="월마다 나가는 월세 예산을 얼마로 생각하시나요?")]
+        return [
+            BotTextMessage(
+                type="bot.text",
+                content="월마다 나가는 월세 예산을 얼마로 생각하시나요?",
+            )
+        ]
 
     def result(
         self,
@@ -60,9 +74,13 @@ class MessageBuilder:
             ),
         ]
 
-    def fallback(self) -> list[BotMessage]:
+    def fallback(self, error: ErrorResponse | None = None) -> list[BotMessage]:
+        content = "죄송해요, 다시 시도해주세요."
+        if error is not None:
+            content = f"{error.message} ({error.code})"
+
         return [
-            BotTextMessage(type="bot.text", content="죄송해요, 다시 시도해주세요."),
+            BotTextMessage(type="bot.text", content=content),
             BotQuickRepliesMessage(
                 type="bot.quick_replies",
                 chips=quick_replies(CHIP_RETRY),

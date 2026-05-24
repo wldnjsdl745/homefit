@@ -82,7 +82,13 @@ export class MockChatServer {
   }
 
   private formatDealType(dealType: DealType): string {
-    return dealType === "jeonse" ? "전세" : "월세";
+    if (dealType === "jeonse") {
+      return "전세";
+    }
+    if (dealType === "monthly_rent") {
+      return "월세";
+    }
+    return "매매";
   }
 
   private formatBudget(value: number): string {
@@ -116,6 +122,9 @@ export class MockChatServer {
       }
       if (rawMessage.includes("월세")) {
         return { deal_type: "monthly_rent" };
+      }
+      if (rawMessage.includes("매매")) {
+        return { deal_type: "sale" };
       }
       return {};
     }

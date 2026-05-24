@@ -120,8 +120,9 @@ def test_invalid_raw_returns_reprompt_message() -> None:
 
     assert response.status_code == 200
     assert response.json()["state"] == "asking"
+    assert response.json()["error"]["code"] == "AI-REQ-001"
     assert response.json()["bot_messages"] == [
-        {"type": "bot.text", "content": "다시 알려주세요."}
+        {"type": "bot.text", "content": "입력값을 이해하지 못했어요. 다시 알려주세요. (AI-REQ-001)"}
     ]
 
 

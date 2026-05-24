@@ -22,6 +22,10 @@ describe("UserInputParser", () => {
       raw: { deal_type: "monthly_rent" },
       raw_message: "월세",
     });
+    expect(parser.parse({ budget_max: 200000000 }, "매매")).toEqual({
+      raw: { deal_type: "sale" },
+      raw_message: "매매",
+    });
   });
 
   it("passes natural language as raw_message", () => {

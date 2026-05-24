@@ -23,6 +23,20 @@ SPRING_DATASOURCE_USERNAME=homefit
 SPRING_DATASOURCE_PASSWORD=your_rds_password
 ```
 
+이미 테이블이 생성된 RDS를 처음 연결하는 경우에는 기존 스키마가 `V1`~`V3` migration 결과와 동일한지 확인한 뒤 Flyway baseline 옵션을 한 번만 켭니다.
+
+```sh
+SPRING_FLYWAY_BASELINE_ON_MIGRATE=true
+SPRING_FLYWAY_BASELINE_VERSION=3
+```
+
+기존 RDS에 실패한 Flyway 이력이 남아 있으면 먼저 이력만 확인/정리합니다. 데이터 테이블은 삭제하지 않습니다.
+
+```sh
+make rds-flyway-history RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com RDS_PASSWORD=your_rds_password
+make rds-flyway-adopt-v3 RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com RDS_PASSWORD=your_rds_password CONFIRM_DROP_FLYWAY_HISTORY=yes
+```
+
 RDS 데이터 확인:
 
 ```sh
@@ -47,7 +61,7 @@ make docker-up-detached
 브라우저에서 아래 주소로 접속합니다.
 
 ```txt
-http://localhost:5173/
+http://localhost:5173
 ```
 
 로그 확인:

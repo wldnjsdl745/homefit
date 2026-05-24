@@ -1,9 +1,10 @@
 import pytest
 
 from app.config import Settings
-from app.schemas import ChatRequest, Conditions
+from app.schemas import ChatRequest, Conditions, ErrorResponse
 from app.services.backend_client import (
     BackendClient,
+    BackendClientError,
     FilterRegionsResponse,
     UpsertConditionsResponse,
 )
@@ -17,10 +18,22 @@ class FailingBackendClient(BackendClient):
         raw: Conditions,
         conditions: Conditions,
     ) -> UpsertConditionsResponse:
-        raise ValueError("backend failed")
+        raise BackendClientError(
+            ErrorResponse(
+                code="AI-BE-001",
+                message="Backend에 연결할 수 없어요. 잠시 후 다시 시도해주세요.",
+                detail="backend failed",
+            )
+        )
 
     async def filter_regions(self, conditions: Conditions) -> FilterRegionsResponse:
-        raise ValueError("backend failed")
+        raise BackendClientError(
+            ErrorResponse(
+                code="AI-BE-001",
+                message="Backend에 연결할 수 없어요. 잠시 후 다시 시도해주세요.",
+                detail="backend failed",
+            )
+        )
 
 
 class StaticLlmProvider:
@@ -38,7 +51,11 @@ async def test_chat_service_returns_fallback_when_backend_fails() -> None:
     response = await service.handle(ChatRequest(session_id=None, raw=Conditions()))
 
     assert response.state == "asking"
-    assert response.bot_messages[0].content == "죄송해요, 다시 시도해주세요."
+    assert response.error is not None
+    assert response.error.code == "AI-BE-001"
+    assert response.bot_messages[0].content == (
+        "Backend에 연결할 수 없어요. 잠시 후 다시 시도해주세요. (AI-BE-001)"
+    )
 
 
 @pytest.mark.asyncio
@@ -51,7 +68,11 @@ async def test_chat_service_returns_fallback_when_dummy_fail_enabled() -> None:
     response = await service.handle(ChatRequest(session_id=None, raw=Conditions()))
 
     assert response.state == "asking"
-    assert response.bot_messages[0].content == "죄송해요, 다시 시도해주세요."
+    assert response.error is not None
+    assert response.error.code == "AI-SYS-001"
+    assert response.bot_messages[0].content == (
+        "AI 서버가 테스트 실패 모드로 실행 중이에요. (AI-SYS-001)"
+    )
 
 
 @pytest.mark.asyncio

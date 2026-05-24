@@ -20,8 +20,8 @@ from __future__ import annotations
 import httpx
 
 from app.config import Settings
-from app.schemas import ChatRequest, ChatResponse, Conditions, DealType
-from app.services.backend_client import BackendClient
+from app.schemas import ChatRequest, ChatResponse, Conditions, DealType, ErrorResponse
+from app.services.backend_client import BackendClient, BackendClientError
 from app.services.llm_provider import DummyLlmProvider, LlmProvider
 from app.services.merge_service import MergeService
 from app.services.message_builder import MessageBuilder
@@ -54,7 +54,14 @@ class ChatService:
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
         if self.settings.dummy_fail:
-            return self._fallback(request.session_id)
+            return self._fallback(
+                request.session_id,
+                ErrorResponse(
+                    code="AI-SYS-001",
+                    message="AI 서버가 테스트 실패 모드로 실행 중이에요.",
+                    detail="AI_DUMMY_FAIL is enabled.",
+                ),
+            )
 
         try:
             # 1) BE에 세션 등록 + 칩에서 받은 raw 저장 (LLM 호출 X)
@@ -96,7 +103,12 @@ class ChatService:
 
             conditions = upserted.conditions
 
-            if step == 2 and conditions.deal_type == DealType.MONTHLY_RENT and conditions.monthly_rent_max is None:
+            needs_monthly_rent = (
+                step == 2
+                and conditions.deal_type == DealType.MONTHLY_RENT
+                and conditions.monthly_rent_max is None
+            )
+            if needs_monthly_rent:
                 # 월세 선택 → 월세 예산 추가 질문
                 return ChatResponse(
                     session_id=sid,
@@ -126,14 +138,24 @@ class ChatService:
                 bot_messages=self.message_builder.result(conditions, regions.regions),
             )
 
-        except (httpx.HTTPError, ValueError):
-            return self._fallback(request.session_id)
+        except BackendClientError as exception:
+            return self._fallback(request.session_id, exception.error)
+        except (httpx.HTTPError, ValueError) as exception:
+            return self._fallback(
+                request.session_id,
+                ErrorResponse(
+                    code="AI-SYS-002",
+                    message="AI 처리 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.",
+                    detail=str(exception),
+                ),
+            )
 
-    def _fallback(self, session_id: str | None) -> ChatResponse:
+    def _fallback(self, session_id: str | None, error: ErrorResponse | None = None) -> ChatResponse:
         return ChatResponse(
             session_id=session_id or "fallback",
             state="asking",
-            bot_messages=self.message_builder.fallback(),
+            bot_messages=self.message_builder.fallback(error),
+            error=error,
         )
 
     @staticmethod

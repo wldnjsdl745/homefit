@@ -161,6 +161,8 @@ class InternalApiTests {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BE-REQ-001"))
+                .andExpect(jsonPath("$.message").value("Invalid internal API request."))
                 .andExpect(jsonPath("$.detail").value("conditions.deal_type must be jeonse, monthly_rent, or sale."));
     }
 
