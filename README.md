@@ -23,12 +23,8 @@ SPRING_DATASOURCE_USERNAME=homefit
 SPRING_DATASOURCE_PASSWORD=your_rds_password
 ```
 
-이미 테이블이 생성된 RDS를 처음 연결하는 경우에는 기존 스키마가 `V1`~`V3` migration 결과와 동일한지 확인한 뒤 Flyway baseline 옵션을 한 번만 켭니다.
-
-```sh
-SPRING_FLYWAY_BASELINE_ON_MIGRATE=true
-SPRING_FLYWAY_BASELINE_VERSION=3
-```
+이미 테이블이 생성된 RDS를 처음 연결하는 경우에는 Backend가 핵심 테이블 존재 여부를 확인합니다.
+`regions`, `housing_transactions`, `chat_messages`, `housing_transactions.sale_price_amount`가 있고 Flyway 이력이 없으면 현재 스키마를 자동으로 `V3` baseline으로 등록합니다.
 
 기존 RDS에 실패한 Flyway 이력이 남아 있으면 먼저 이력만 확인/정리합니다. 데이터 테이블은 삭제하지 않습니다.
 

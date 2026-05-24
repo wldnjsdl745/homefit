@@ -2,7 +2,7 @@
 -- 기준: 주택도시보증공사 전세반환보증 사고율 기반 추정치 (2024년 기준)
 -- safety_grade: A(사고율 0.5% 미만) / B(0.5%~2%) / C(2% 이상)
 -- ※ 실제 공식 데이터(reb.or.kr/r-one)로 교체 권장
-INSERT INTO region_jeonse_safety (sigungu, accident_rate, safety_grade, reference_date) VALUES
+INSERT IGNORE INTO region_jeonse_safety (sigungu, accident_rate, safety_grade, reference_date) VALUES
   -- A등급: 고가 아파트 비율 높고 전세사기 위험 낮은 구
   ('강남구',   0.0010, 'A', '2024-01-01'),
   ('서초구',   0.0015, 'A', '2024-01-01'),

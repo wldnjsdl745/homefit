@@ -1,7 +1,7 @@
 -- 서울 25개 구 지하철 접근성 시드 데이터
 -- subway_count: 구 내 지하철역 수 (서울 지하철 1~9호선 + 경의중앙선 + 공항철도 기준)
 -- transit_score: subway_count / 22 * 100 정규화 (최대 강남구 22개 기준)
-INSERT INTO region_transit (sigungu, subway_count, transit_score) VALUES
+INSERT IGNORE INTO region_transit (sigungu, subway_count, transit_score) VALUES
   ('강남구',   22, 100.00),
   ('송파구',   16,  72.73),
   ('노원구',   12,  54.55),
