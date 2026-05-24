@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { ChatGatewayFactory, type ChatGateway } from "../api/chat";
 import { IdFactory } from "../lib/idFactory";
+import { ChipMapper } from "../lib/chipMapper";
 import { UserInputParser } from "../lib/userInputParser";
 import type { BotMessage, ChatMessage, ChatRequest, ChatResponse, Conditions } from "../types/chat";
 
@@ -137,6 +138,7 @@ type UseChatOptions = {
   inputParser?: UserInputParser;
   messageFactory?: ChatMessageFactory;
   sequencer?: BotMessageSequencer;
+  chipMapper?: ChipMapper;
 };
 
 export function useChat(options: UseChatOptions = {}) {
@@ -152,6 +154,10 @@ export function useChat(options: UseChatOptions = {}) {
   const sequencer = useMemo(
     () => options.sequencer ?? new BotMessageSequencer(),
     [options.sequencer],
+  );
+  const chipMapper = useMemo(
+    () => options.chipMapper ?? new ChipMapper(),
+    [options.chipMapper],
   );
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const hasBootstrappedRef = useRef(false);
@@ -223,6 +229,23 @@ export function useChat(options: UseChatOptions = {}) {
     [inputParser, sendRequest, state.conditions],
   );
 
+  const submitChip = useCallback(
+    async (chipId: string) => {
+      const action = chipMapper.getAction(chipId);
+      if (action.kind === "restart") {
+        hasBootstrappedRef.current = false;
+        dispatch({ type: "reset" });
+        return;
+      }
+      if (action.kind === "retry") {
+        await retry();
+        return;
+      }
+      await sendRequest({ raw: action.raw }, action.label, chipId);
+    },
+    [chipMapper, retry, sendRequest],
+  );
+
   useEffect(() => {
     if (!hasBootstrappedRef.current && state.messages.length === 0 && state.status === "idle") {
       hasBootstrappedRef.current = true;
@@ -235,6 +258,7 @@ export function useChat(options: UseChatOptions = {}) {
     isWaiting: state.status === "waiting",
     hasError: state.status === "error",
     submitText,
+    submitChip,
     restart,
     retry,
   };

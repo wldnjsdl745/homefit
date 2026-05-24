@@ -1,8 +1,13 @@
-export type DealType = "monthly_rent" | "jeonse";
+export type DealType = "monthly_rent" | "jeonse" | "sale";
+
+export type CommuteDestination = "gangnam" | "yeouido" | "gwanghwamun" | "hongdae" | "jamsil";
 
 export type Conditions = {
   budget_max?: number;
   deal_type?: DealType;
+  monthly_rent_max?: number;
+  commute_destination?: CommuteDestination;
+  commute_skipped?: boolean;
   preference_text?: string;
 };
 
