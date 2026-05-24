@@ -7,10 +7,11 @@
 Dialog 흐름:
   step 0 (첫 호출):     자본금 질문
   step 1 (답변 1번):    거래 유형 질문 (전세/월세/매매 칩)
-  step 2 (답변 2번):
+  step 2 (답변 2번):    통근 목적지 질문 (업무지구 칩)
+  step 3 (답변 3번):
     - deal_type=monthly_rent & monthly_rent_max 없음 → 월세 예산 질문
     - 그 외 (전세/매매) → 완료
-  step 3 (답변 3번):    완료 (월세 예산 받은 후)
+  step 4 (답변 4번):    완료 (월세 예산 받은 후)
 
 완료 = 누적 raw_message가 있으면 LLM 1회 → BE 필터 → 결과.
 
@@ -24,11 +25,17 @@ from __future__ import annotations
 import httpx
 
 from app.config import Settings
-from app.schemas import ChatRequest, ChatResponse, Conditions, DealType
-from app.services.backend_client import BackendClient
+from app.schemas import ChatRequest, ChatResponse, Conditions, DealType, ErrorResponse
+from app.services.backend_client import BackendClient, BackendClientError
 from app.services.llm_provider import DummyLlmProvider, LlmProvider
 from app.services.merge_service import MergeService
 from app.services.message_builder import MessageBuilder
+
+_SYS_ERROR = ErrorResponse(
+    code="AI-SYS-001",
+    message="AI 서버가 테스트 실패 모드로 실행 중이에요.",
+    detail="dummy_fail=True",
+)
 
 
 class _SessionState:
@@ -59,7 +66,7 @@ class ChatService:
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
         if self.settings.dummy_fail:
-            return self._fallback(request.session_id)
+            return self._fallback(request.session_id, _SYS_ERROR)
 
         try:
             # 1) 이전 누적 조건 조회 → 이번 턴 raw 머지
@@ -106,9 +113,16 @@ class ChatService:
                     bot_messages=self.message_builder.ask_deal_type(),
                 )
 
+            if step == 2:
+                return ChatResponse(
+                    session_id=sid,
+                    state="asking",
+                    bot_messages=self.message_builder.ask_commute(),
+                )
+
             conditions = state.conditions
 
-            if step == 2 and conditions.deal_type == DealType.MONTHLY_RENT and conditions.monthly_rent_max is None:
+            if step == 3 and conditions.deal_type == DealType.MONTHLY_RENT and conditions.monthly_rent_max is None:
                 return ChatResponse(
                     session_id=sid,
                     state="asking",
@@ -133,17 +147,26 @@ class ChatService:
             return ChatResponse(
                 session_id=sid,
                 state="result",
-                bot_messages=self.message_builder.result(conditions, regions.regions),
+                bot_messages=self.message_builder.result(
+                    conditions, regions.regions, regions.region_details
+                ),
             )
 
+        except BackendClientError as exc:
+            return self._fallback(request.session_id, exc.error)
         except (httpx.HTTPError, ValueError):
             return self._fallback(request.session_id)
 
-    def _fallback(self, session_id: str | None) -> ChatResponse:
+    def _fallback(self, session_id: str | None, error: ErrorResponse | None = None) -> ChatResponse:
+        if error:
+            msg = f"{error.message} ({error.code})"
+        else:
+            msg = "죄송해요, 다시 시도해주세요."
         return ChatResponse(
             session_id=session_id or "fallback",
             state="asking",
-            bot_messages=self.message_builder.fallback(),
+            error=error,
+            bot_messages=self.message_builder.fallback(msg),
         )
 
     @staticmethod

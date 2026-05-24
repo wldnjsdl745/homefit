@@ -5,12 +5,20 @@ import httpx
 
 from app.schemas import (
     Conditions,
+    ErrorResponse,
     FilterRegionsRequest,
     FilterRegionsResponse,
+    RegionDetail,
     UpsertConditionsRequest,
     UpsertConditionsResponse,
 )
 from app.services.merge_service import MergeService
+
+
+class BackendClientError(Exception):
+    def __init__(self, error: ErrorResponse) -> None:
+        super().__init__(error.message)
+        self.error = error
 
 
 class BackendClient(ABC):
@@ -65,8 +73,22 @@ class HttpBackendClient(BackendClient):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     response = await client.post(f"{self.base_url}{path}", json=payload)
+                    if response.status_code >= 400:
+                        try:
+                            body = response.json()
+                            raise BackendClientError(
+                                ErrorResponse(
+                                    code=body.get("code", "AI-BE-001"),
+                                    message=body.get("message", "Backend 오류가 발생했어요."),
+                                    detail=body.get("detail", str(response.status_code)),
+                                )
+                            )
+                        except (KeyError, ValueError):
+                            pass
                     response.raise_for_status()
                     return response
+            except BackendClientError:
+                raise
             except httpx.HTTPError as error:
                 last_error = error
 
@@ -95,15 +117,29 @@ class MockBackendClient(BackendClient):
 
     async def filter_regions(self, conditions: Conditions) -> FilterRegionsResponse:
         if conditions.budget_max is not None and conditions.budget_max < 60_000_000:
-            return FilterRegionsResponse(regions=[])
+            return FilterRegionsResponse(regions=[], region_details=[])
+
+        dest = conditions.commute_destination
 
         if conditions.deal_type == "jeonse":
-            return FilterRegionsResponse(regions=["마포구", "은평구", "서대문구"])
+            regions = ["마포구", "성동구", "광진구"]
+            details = [
+                RegionDetail(name="마포구", commute_minutes=25 if dest else None, safety_grade="A"),
+                RegionDetail(name="성동구", commute_minutes=15 if dest else None, safety_grade="A"),
+                RegionDetail(name="광진구", commute_minutes=30 if dest else None, safety_grade="B"),
+            ]
+            return FilterRegionsResponse(regions=regions, region_details=details)
 
         if conditions.deal_type == "monthly_rent":
-            return FilterRegionsResponse(regions=["관악구", "동작구", "영등포구"])
+            regions = ["관악구", "동작구", "영등포구"]
+            details = [RegionDetail(name=r) for r in regions]
+            return FilterRegionsResponse(regions=regions, region_details=details)
 
         if conditions.deal_type == "sale":
-            return FilterRegionsResponse(regions=["노원구", "도봉구", "강북구"])
+            regions = ["노원구", "도봉구", "강북구"]
+            details = [RegionDetail(name=r) for r in regions]
+            return FilterRegionsResponse(regions=regions, region_details=details)
 
-        return FilterRegionsResponse(regions=["마포구", "은평구", "서대문구"])
+        regions = ["마포구", "은평구", "서대문구"]
+        details = [RegionDetail(name=r) for r in regions]
+        return FilterRegionsResponse(regions=regions, region_details=details)

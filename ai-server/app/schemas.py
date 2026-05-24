@@ -20,13 +20,21 @@ class DealType(StrEnum):
     SALE = "sale"
 
 
+class CommuteDestination(StrEnum):
+    """통근 목적지 업무지구. BE region_commute 테이블의 destination_key와 일치."""
+
+    GANGNAM = "gangnam"
+    YEOUIDO = "yeouido"
+    GWANGHWAMUN = "gwanghwamun"
+    HONGDAE = "hongdae"
+    JAMSIL = "jamsil"
+
+
 class Conditions(BaseModel):
     """사용자 추천 조건 누적 상태.
 
     - `extra="forbid"`: 정의되지 않은 키는 거부 (LLM의 hallucinated 키 방어).
     - 모든 필드 optional: 대화가 진행되면서 점진적으로 채워진다.
-    - v1+ 확장 후보(commute_target / max_commute_minutes / priority / age_group)는
-      필요 시점에 추가하고 dialog_policy / message_builder 동시 갱신.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -69,6 +77,28 @@ class Conditions(BaseModel):
                 "전세/매매는 null. 예: '80만원' → 800000."
             ),
             examples=[500_000, 800_000, 1_000_000],
+        ),
+    ] = None
+
+    commute_destination: Annotated[
+        CommuteDestination | None,
+        Field(
+            default=None,
+            description=(
+                "주요 통근 목적지 업무지구. "
+                "gangnam / yeouido / gwanghwamun / hongdae / jamsil. "
+                "null이면 통근 시간 점수 미적용. "
+                "추출 방법: 칩(`commute_*`). 단계: v1."
+            ),
+            examples=["gangnam", "yeouido"],
+        ),
+    ] = None
+
+    commute_skipped: Annotated[
+        bool | None,
+        Field(
+            default=None,
+            description="통근 목적지 질문을 건너뜀. True이면 commute_destination=null로 처리.",
         ),
     ] = None
 
@@ -138,6 +168,7 @@ class ChatResponse(BaseModel):
     session_id: str
     state: Literal["asking", "result"]
     bot_messages: list[BotMessage]
+    error: "ErrorResponse | None" = None
 
 
 # ─── 내부 API (AI 서버 → BE) ──────────────────────────────
@@ -162,11 +193,18 @@ class FilterRegionsRequest(BaseModel):
     conditions: Conditions
 
 
+class RegionDetail(BaseModel):
+    name: str
+    commute_minutes: int | None = None
+    safety_grade: str | None = None
+
+
 class FilterRegionsResponse(BaseModel):
     regions: list[str] = Field(
         description="추천 지역 한국어 이름 리스트. v0은 시군구 단위.",
-        examples=[["분당", "성남", "경기도"]],
+        examples=[["마포구", "성동구", "광진구"]],
     )
+    region_details: list[RegionDetail] = Field(default_factory=list)
 
 
 # ─── 헬스체크 / 에러 ──────────────────────────────────────
@@ -179,4 +217,6 @@ class HealthResponse(BaseModel):
 class ErrorResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    code: str
+    message: str
     detail: str

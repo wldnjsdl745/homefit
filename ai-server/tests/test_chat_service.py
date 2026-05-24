@@ -51,7 +51,7 @@ async def test_chat_service_returns_fallback_when_dummy_fail_enabled() -> None:
     response = await service.handle(ChatRequest(session_id=None, raw=Conditions()))
 
     assert response.state == "asking"
-    assert response.bot_messages[0].content == "죄송해요, 다시 시도해주세요."
+    assert "AI-SYS-001" in response.bot_messages[0].content
 
 
 @pytest.mark.asyncio
@@ -59,7 +59,8 @@ async def test_chat_service_uses_llm_provider_once_at_dialog_complete() -> None:
     """단일 LLM 호출 정책: 턴별 추출 없이 누적 → 완료 시 1회 추출.
 
     turn 1 (자본금 텍스트): LLM 미호출, 거래 유형 질문.
-    turn 2 (거래 유형 텍스트): 완료 → LLM 1회 → mock filter → 결과.
+    turn 2 (거래 유형 텍스트): 통근 목적지 질문.
+    turn 3 (통근지 건너뜀 칩): 완료 → LLM 1회 → mock filter → 결과.
     """
     from app.services.backend_client import MockBackendClient
 
@@ -82,7 +83,16 @@ async def test_chat_service_uses_llm_provider_once_at_dialog_complete() -> None:
             raw_message="전세로 가자",
         )
     )
-    assert turn2.state == "result"
-    assert turn2.bot_messages[0].type == "bot.text"
-    assert "전세" in turn2.bot_messages[0].content
-    assert "서울 지역" in turn2.bot_messages[0].content
+    assert turn2.state == "asking"
+    assert "출퇴근" in turn2.bot_messages[0].content
+
+    turn3 = await service.handle(
+        ChatRequest(
+            session_id=turn2.session_id,
+            raw=Conditions(commute_skipped=True),
+        )
+    )
+    assert turn3.state == "result"
+    assert turn3.bot_messages[0].type == "bot.text"
+    assert "전세" in turn3.bot_messages[0].content
+    assert "서울 지역" in turn3.bot_messages[0].content

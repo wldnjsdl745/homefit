@@ -1,6 +1,12 @@
-from app.schemas import BotMessage, BotQuickRepliesMessage, BotTextMessage, Conditions
+from app.schemas import BotMessage, BotQuickRepliesMessage, BotTextMessage, Conditions, RegionDetail
 from app.services.chip_catalog import (
     CHIP_BUDGET_RESTART,
+    CHIP_COMMUTE_GANGNAM,
+    CHIP_COMMUTE_GWANGHWAMUN,
+    CHIP_COMMUTE_HONGDAE,
+    CHIP_COMMUTE_JAMSIL,
+    CHIP_COMMUTE_SKIP,
+    CHIP_COMMUTE_YEOUIDO,
     CHIP_DEAL_JEONSE,
     CHIP_DEAL_MONTHLY_RENT,
     CHIP_DEAL_SALE,
@@ -27,6 +33,22 @@ class MessageBuilder:
             ),
         ]
 
+    def ask_commute(self) -> list[BotMessage]:
+        return [
+            BotTextMessage(type="bot.text", content="주로 어디로 출퇴근하시나요? 가까운 업무지구를 선택해주세요."),
+            BotQuickRepliesMessage(
+                type="bot.quick_replies",
+                chips=quick_replies(
+                    CHIP_COMMUTE_GANGNAM,
+                    CHIP_COMMUTE_YEOUIDO,
+                    CHIP_COMMUTE_GWANGHWAMUN,
+                    CHIP_COMMUTE_HONGDAE,
+                    CHIP_COMMUTE_JAMSIL,
+                    CHIP_COMMUTE_SKIP,
+                ),
+            ),
+        ]
+
     def ask_monthly_rent(self) -> list[BotMessage]:
         return [BotTextMessage(type="bot.text", content="월마다 나가는 월세 예산을 얼마로 생각하시나요?")]
 
@@ -34,12 +56,13 @@ class MessageBuilder:
         self,
         conditions: Conditions,
         regions: list[str],
+        region_details: list[RegionDetail] | None = None,
         result_text: str | None = None,
     ) -> list[BotMessage]:
         if not regions:
             return self.empty_result()
 
-        content = result_text or self.formatter.format(conditions, regions)
+        content = result_text or self.formatter.format(conditions, regions, region_details)
         return [
             BotTextMessage(type="bot.text", content=content),
             BotQuickRepliesMessage(
@@ -60,9 +83,9 @@ class MessageBuilder:
             ),
         ]
 
-    def fallback(self) -> list[BotMessage]:
+    def fallback(self, message: str = "죄송해요, 다시 시도해주세요.") -> list[BotMessage]:
         return [
-            BotTextMessage(type="bot.text", content="죄송해요, 다시 시도해주세요."),
+            BotTextMessage(type="bot.text", content=message),
             BotQuickRepliesMessage(
                 type="bot.quick_replies",
                 chips=quick_replies(CHIP_RETRY),
