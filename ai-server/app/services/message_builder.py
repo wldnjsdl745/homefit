@@ -1,10 +1,6 @@
 from app.schemas import BotMessage, BotQuickRepliesMessage, BotTextMessage, Conditions, RegionDetail
 from app.services.chip_catalog import (
-    CHIP_BUDGET_1_3,
-    CHIP_BUDGET_3_5,
-    CHIP_BUDGET_5_ABOVE,
     CHIP_BUDGET_RESTART,
-    CHIP_BUDGET_UNDER_1,
     CHIP_COMMUTE_GANGNAM,
     CHIP_COMMUTE_GWANGHWAMUN,
     CHIP_COMMUTE_HONGDAE,
@@ -26,18 +22,7 @@ class MessageBuilder:
         self.formatter = formatter or ResultFormatter()
 
     def ask_budget(self) -> list[BotMessage]:
-        return [
-            BotTextMessage(type="bot.text", content="먼저 자본금이 어느 정도인지 알려주세요."),
-            BotQuickRepliesMessage(
-                type="bot.quick_replies",
-                chips=quick_replies(
-                    CHIP_BUDGET_UNDER_1,
-                    CHIP_BUDGET_1_3,
-                    CHIP_BUDGET_3_5,
-                    CHIP_BUDGET_5_ABOVE,
-                ),
-            ),
-        ]
+        return [BotTextMessage(type="bot.text", content="먼저 자본금이 어느 정도인지 알려주세요.")]
 
     def ask_deal_type(self) -> list[BotMessage]:
         return [

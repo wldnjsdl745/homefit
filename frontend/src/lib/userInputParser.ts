@@ -33,13 +33,17 @@ export class UserInputParser {
     if (/^\d+$/.test(input)) {
       return Number(input);
     }
-    // "2억", "2억5000만", "5000만" 등 한국어 금액
-    const match = input.match(/(?:(\d+(?:\.\d+)?)\s*억)?\s*(?:(\d+(?:\.\d+)?)\s*만)?/);
-    if (match && (match[1] || match[2])) {
-      const eok = parseFloat(match[1] ?? "0") * 100_000_000;
-      const man = parseFloat(match[2] ?? "0") * 10_000;
-      const total = eok + man;
-      return total > 0 ? total : null;
+    // "2억", "2억5000만" 등 — 억 포함 (만 선택)
+    const eokMatch = input.match(/(\d+(?:\.\d+)?)\s*억(?:\s*(\d+(?:\.\d+)?)\s*만)?/);
+    if (eokMatch) {
+      const eok = parseFloat(eokMatch[1]) * 100_000_000;
+      const man = eokMatch[2] ? parseFloat(eokMatch[2]) * 10_000 : 0;
+      return eok + man;
+    }
+    // "5000만" 등 — 만 단독
+    const manMatch = input.match(/(\d+(?:\.\d+)?)\s*만/);
+    if (manMatch) {
+      return parseFloat(manMatch[1]) * 10_000;
     }
     return null;
   }
