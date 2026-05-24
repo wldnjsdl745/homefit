@@ -2,7 +2,7 @@
 name = "homefit-ai-server"
 version = "0.1.0"
 description = "Homefit AI orchestration server MVP"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
   "fastapi==0.115.6",
   "httpx==0.28.1",
@@ -22,11 +22,6 @@ dev = [
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-# 기본은 단위 테스트만. 통합 테스트는 `pytest -m integration`로 명시적 실행.
-addopts = "-m 'not integration'"
-markers = [
-  "integration: 외부 서비스(예: Ollama)가 떠 있어야 동작하는 통합 테스트",
-]
 
 [tool.ruff]
 line-length = 100
