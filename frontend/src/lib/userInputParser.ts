@@ -37,6 +37,10 @@ export class UserInputParser {
       return { raw: { deal_type: "monthly_rent" }, raw_message: input };
     }
 
+    if (input === "매매") {
+      return { raw: { deal_type: "sale" }, raw_message: input };
+    }
+
     return { raw: {}, raw_message: input };
   }
 }

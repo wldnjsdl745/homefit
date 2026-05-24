@@ -9,6 +9,11 @@ LOCAL_MYSQL_HOST ?= localhost
 LOCAL_MYSQL_PORT ?= 3306
 LOCAL_MYSQL_USER ?= root
 LOCAL_MYSQL_DATABASE ?= homefit
+RDS_HOST ?=
+RDS_PORT ?= 3306
+RDS_DATABASE ?= homefit
+RDS_USER ?= homefit
+RDS_PASSWORD ?=
 
 .PHONY: help
 help:
@@ -42,6 +47,11 @@ help:
 	@printf "  make docker-db-refresh-from-local Dump local MySQL data and force-import it into Docker MySQL\n"
 	@printf "  make docker-db-backup   Export Docker MySQL data to backup-data.sql\n"
 	@printf "  make docker-db-shell    Open Docker MySQL shell\n"
+	@printf "  make rds-count          Count regions and housing_transactions in RDS\n"
+	@printf "  make rds-flyway-history Show Flyway schema history in RDS\n"
+	@printf "  make rds-flyway-adopt-v3 Drop Flyway history metadata so existing RDS schema can be baselined as V3\n"
+	@printf "  make rds-import-seed    Import db/seed seed data into RDS\n"
+	@printf "  make rds-shell          Open RDS MySQL shell\n"
 	@printf "  make docker-down-volumes Stop services and remove Docker volumes\n"
 	@printf "\n"
 	@printf "  ── 개별 서비스 컨트롤 ──\n"
@@ -202,6 +212,46 @@ docker-db-backup:
 .PHONY: docker-db-shell
 docker-db-shell:
 	$(COMPOSE) exec db sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"'
+
+.PHONY: rds-count
+rds-count:
+	@test -n "$(RDS_HOST)" || (printf "RDS_HOST is required.\n" && exit 1)
+	@test -n "$(RDS_PASSWORD)" || (printf "RDS_PASSWORD is required.\n" && exit 1)
+	MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)" \
+	  -e "select count(*) as regions from regions; select count(*) as housing_transactions from housing_transactions;"
+
+.PHONY: rds-flyway-history
+rds-flyway-history:
+	@test -n "$(RDS_HOST)" || (printf "RDS_HOST is required.\n" && exit 1)
+	@test -n "$(RDS_PASSWORD)" || (printf "RDS_PASSWORD is required.\n" && exit 1)
+	MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)" \
+	  -e "set @history_exists := (select count(*) from information_schema.tables where table_schema = database() and table_name = 'flyway_schema_history'); select if(@history_exists = 1, 'present', 'missing') as flyway_schema_history; set @sql := if(@history_exists = 1, 'select installed_rank, version, description, type, script, success from flyway_schema_history order by installed_rank', 'select ''flyway_schema_history is missing'' as message'); prepare stmt from @sql; execute stmt; deallocate prepare stmt;"
+
+.PHONY: rds-flyway-adopt-v3
+rds-flyway-adopt-v3:
+	@test -n "$(RDS_HOST)" || (printf "RDS_HOST is required.\n" && exit 1)
+	@test -n "$(RDS_PASSWORD)" || (printf "RDS_PASSWORD is required.\n" && exit 1)
+	@test "$(CONFIRM_DROP_FLYWAY_HISTORY)" = "yes" || (printf "This drops only RDS flyway_schema_history metadata, not data tables. Re-run with CONFIRM_DROP_FLYWAY_HISTORY=yes.\n" && exit 1)
+	MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)" \
+	  -e "drop table if exists flyway_schema_history;"
+	@printf "Dropped flyway_schema_history metadata. Start backend with SPRING_FLYWAY_BASELINE_ON_MIGRATE=true and SPRING_FLYWAY_BASELINE_VERSION=3 so Flyway baselines the existing RDS schema as V3.\n"
+
+.PHONY: rds-import-seed
+rds-import-seed:
+	@test -f $(SEED_ARCHIVE) -o -f $(SEED_DIR)/seed-data.sql || (printf "$(SEED_ARCHIVE) or $(SEED_DIR)/seed-data.sql not found. Run make docker-db-pack first.\n" && exit 1)
+	@test -n "$(RDS_HOST)" || (printf "RDS_HOST is required.\n" && exit 1)
+	@test -n "$(RDS_PASSWORD)" || (printf "RDS_PASSWORD is required.\n" && exit 1)
+	@if [ -f "$(SEED_ARCHIVE)" ]; then \
+	  gzip -dc "$(SEED_ARCHIVE)" | MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)"; \
+	else \
+	  MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)" < "$(SEED_DIR)/seed-data.sql"; \
+	fi
+
+.PHONY: rds-shell
+rds-shell:
+	@test -n "$(RDS_HOST)" || (printf "RDS_HOST is required.\n" && exit 1)
+	@test -n "$(RDS_PASSWORD)" || (printf "RDS_PASSWORD is required.\n" && exit 1)
+	MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)"
 
 .PHONY: docker-down-volumes
 docker-down-volumes:

@@ -6,6 +6,8 @@ FastAPI가 이 정보를 OpenAPI 문서로 자동 노출하므로 별도 카탈�
 참고: 칩(chip_id) → conditions 매핑은 `app.services.chip_catalog` 참고.
 """
 
+from __future__ import annotations
+
 from enum import StrEnum
 from typing import Annotated, Literal
 
@@ -129,6 +131,14 @@ class BotQuickRepliesMessage(BaseModel):
 BotMessage = BotTextMessage | BotQuickRepliesMessage
 
 
+class ErrorResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+    detail: str
+
+
 class ChatResponse(BaseModel):
     """AI 서버 → FE 응답.
 
@@ -138,6 +148,7 @@ class ChatResponse(BaseModel):
     session_id: str
     state: Literal["asking", "result"]
     bot_messages: list[BotMessage]
+    error: ErrorResponse | None = None
 
 
 # ─── 내부 API (AI 서버 → BE) ──────────────────────────────
@@ -169,14 +180,8 @@ class FilterRegionsResponse(BaseModel):
     )
 
 
-# ─── 헬스체크 / 에러 ──────────────────────────────────────
+# ─── 헬스체크 ─────────────────────────────────────────────
 
 
 class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
-
-
-class ErrorResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    detail: str

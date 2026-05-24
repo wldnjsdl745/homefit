@@ -29,6 +29,7 @@ export class ChipMapper {
     // ─── Q2: 거래 유형 ──────────────────────────────────
     ["deal_jeonse", { kind: "submit", raw: { deal_type: "jeonse" }, label: "전세" }],
     ["deal_monthly_rent", { kind: "submit", raw: { deal_type: "monthly_rent" }, label: "월세" }],
+    ["deal_sale", { kind: "submit", raw: { deal_type: "sale" }, label: "매매" }],
 
     // ─── 액션 (값 매핑 없음) ────────────────────────────
     ["restart", { kind: "restart", label: "다시 추천" }],

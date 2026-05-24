@@ -1,8 +1,9 @@
-export type DealType = "monthly_rent" | "jeonse";
+export type DealType = "monthly_rent" | "jeonse" | "sale";
 
 export type Conditions = {
   budget_max?: number;
   deal_type?: DealType;
+  monthly_rent_max?: number;
   preference_text?: string;
 };
 
@@ -27,6 +28,11 @@ export type ChatResponse = {
   session_id: string;
   state: ChatState;
   bot_messages: BotMessage[];
+  error?: {
+    code: string;
+    message: string;
+    detail: string;
+  } | null;
 };
 
 export type ChatMessage =

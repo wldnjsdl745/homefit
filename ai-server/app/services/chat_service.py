@@ -13,10 +13,6 @@ Dialog 흐름:
   step 3 (답변 3번):    완료 (월세 예산 받은 후)
 
 완료 = 누적 raw_message가 있으면 LLM 1회 → BE 필터 → 결과.
-
-BE 호출 규칙:
-  - upsert-conditions: raw(이번 턴 입력) + conditions(누적 머지 결과) 분리 전달.
-  - 세션 상태(step, 누적 conditions)는 in-memory로 유지. (데모용, 재시작 시 손실)
 """
 
 from __future__ import annotations
@@ -24,19 +20,18 @@ from __future__ import annotations
 import httpx
 
 from app.config import Settings
-from app.schemas import ChatRequest, ChatResponse, Conditions, DealType
-from app.services.backend_client import BackendClient
+from app.schemas import ChatRequest, ChatResponse, Conditions, DealType, ErrorResponse
+from app.services.backend_client import BackendClient, BackendClientError
 from app.services.llm_provider import DummyLlmProvider, LlmProvider
 from app.services.merge_service import MergeService
 from app.services.message_builder import MessageBuilder
 
 
 class _SessionState:
-    __slots__ = ("step", "conditions", "messages")
+    __slots__ = ("step", "messages")
 
     def __init__(self) -> None:
         self.step: int = 0
-        self.conditions: Conditions = Conditions()
         self.messages: list[str] = []
 
 
@@ -59,30 +54,28 @@ class ChatService:
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
         if self.settings.dummy_fail:
-            return self._fallback(request.session_id)
+            return self._fallback(
+                request.session_id,
+                ErrorResponse(
+                    code="AI-SYS-001",
+                    message="AI 서버가 테스트 실패 모드로 실행 중이에요.",
+                    detail="AI_DUMMY_FAIL is enabled.",
+                ),
+            )
 
         try:
-            # 1) 이전 누적 조건 조회 → 이번 턴 raw 머지
-            prior = (
-                self._session_state[request.session_id]
-                if request.session_id and request.session_id in self._session_state
-                else _SessionState()
-            )
-            merged = self.merge_service.merge(prior.conditions, request.raw)
-
-            # 2) BE에 세션 등록 + raw(이번 턴) / conditions(누적 머지) 분리 저장
+            # 1) BE에 세션 등록 + 칩에서 받은 raw 저장 (LLM 호출 X)
             upserted = await self.backend_client.upsert_conditions(
                 session_id=request.session_id,
                 raw=request.raw,
-                conditions=merged,
+                conditions=request.raw,
             )
             sid = upserted.session_id
 
-            # 3) 세션 상태 초기화/조회 (sid 기준)
+            # 2) 세션 상태 초기화/조회
             state = self._session_state.setdefault(sid, _SessionState())
-            state.conditions = upserted.conditions  # BE 반환값을 truth로
 
-            # 4) 사용자가 이번 턴에 응답했는지 판정 (칩 또는 텍스트)
+            # 3) 사용자가 이번 턴에 응답했는지 판정 (칩 또는 텍스트)
             responded = self._has_chip_response(request.raw) or bool(request.raw_message)
             if responded:
                 state.step += 1
@@ -91,8 +84,9 @@ class ChatService:
 
             step = state.step
 
-            # 5) 단계별 응답
+            # 4) 단계별 응답
             if step == 0:
+                # 첫 호출 — 환영 + 자본금 질문
                 return ChatResponse(
                     session_id=sid,
                     state="asking",
@@ -100,35 +94,43 @@ class ChatService:
                 )
 
             if step == 1:
+                # 자본금 답변 받음 — 거래 유형 질문
                 return ChatResponse(
                     session_id=sid,
                     state="asking",
                     bot_messages=self.message_builder.ask_deal_type(),
                 )
 
-            conditions = state.conditions
+            conditions = upserted.conditions
 
-            if step == 2 and conditions.deal_type == DealType.MONTHLY_RENT and conditions.monthly_rent_max is None:
+            needs_monthly_rent = (
+                step == 2
+                and conditions.deal_type == DealType.MONTHLY_RENT
+                and conditions.monthly_rent_max is None
+            )
+            if needs_monthly_rent:
+                # 월세 선택 → 월세 예산 추가 질문
                 return ChatResponse(
                     session_id=sid,
                     state="asking",
                     bot_messages=self.message_builder.ask_monthly_rent(),
                 )
 
-            # 6) Dialog 완료. 누적 텍스트 있으면 LLM 1회 추출 → BE 재저장.
-            if state.messages:
+            # step >= 2 (전세/매매) 또는 step >= 3 (월세): dialog 완료.
+            # 누적 텍스트 있으면 LLM 1회 호출.
+            if self._needs_extraction(conditions) and state.messages:
                 combined = " / ".join(state.messages)
                 extracted = await self.llm_provider.extract_conditions(combined)
                 conditions = self.merge_service.merge(conditions, extracted)
+                # 추출된 conditions를 BE에 반영
                 upserted2 = await self.backend_client.upsert_conditions(
                     session_id=sid,
-                    raw=extracted,
+                    raw=conditions,
                     conditions=conditions,
                 )
                 conditions = upserted2.conditions
-                state.conditions = conditions
 
-            # 7) BE 필터링 → 결과
+            # 5) BE 필터링 → 결과
             regions = await self.backend_client.filter_regions(conditions)
             return ChatResponse(
                 session_id=sid,
@@ -136,17 +138,36 @@ class ChatService:
                 bot_messages=self.message_builder.result(conditions, regions.regions),
             )
 
-        except (httpx.HTTPError, ValueError):
-            return self._fallback(request.session_id)
+        except BackendClientError as exception:
+            return self._fallback(request.session_id, exception.error)
+        except (httpx.HTTPError, ValueError) as exception:
+            return self._fallback(
+                request.session_id,
+                ErrorResponse(
+                    code="AI-SYS-002",
+                    message="AI 처리 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.",
+                    detail=str(exception),
+                ),
+            )
 
-    def _fallback(self, session_id: str | None) -> ChatResponse:
+    def _fallback(self, session_id: str | None, error: ErrorResponse | None = None) -> ChatResponse:
         return ChatResponse(
             session_id=session_id or "fallback",
             state="asking",
-            bot_messages=self.message_builder.fallback(),
+            bot_messages=self.message_builder.fallback(error),
+            error=error,
         )
 
     @staticmethod
     def _has_chip_response(raw: Conditions) -> bool:
         """raw에 의미 있는 값이 있으면 True."""
         return bool(raw.model_dump(exclude_none=True, exclude={"preference_text"}))
+
+    @staticmethod
+    def _needs_extraction(conditions: Conditions) -> bool:
+        """LLM 추출이 필요한 경우: 필수 키 누락."""
+        if conditions.budget_max is None or conditions.deal_type is None:
+            return True
+        if conditions.deal_type == DealType.MONTHLY_RENT and conditions.monthly_rent_max is None:
+            return True
+        return False

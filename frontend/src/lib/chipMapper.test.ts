@@ -12,6 +12,16 @@ describe("ChipMapper", () => {
     });
   });
 
+  it("maps sale chip to raw conditions", () => {
+    const mapper = new ChipMapper();
+
+    expect(mapper.getAction("deal_sale")).toEqual({
+      kind: "submit",
+      raw: { deal_type: "sale" },
+      label: "매매",
+    });
+  });
+
   it("maps restart chip to restart action", () => {
     const mapper = new ChipMapper();
 

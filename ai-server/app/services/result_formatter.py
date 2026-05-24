@@ -8,7 +8,10 @@ class ResultFormatter:
         if conditions.deal_type == DealType.MONTHLY_RENT:
             budget = self.format_budget(conditions.budget_max)
             rent = self.format_budget(conditions.monthly_rent_max)
-            return f"월세 보증금 {budget}, 월세 {rent} 이하 조건에 맞는 서울 지역은 {region_text}입니다."
+            return (
+                f"월세 보증금 {budget}, 월세 {rent} 이하 조건에 맞는 "
+                f"서울 지역은 {region_text}입니다."
+            )
 
         deal_type = self.format_deal_type(conditions.deal_type)
         budget = self.format_budget(conditions.budget_max)

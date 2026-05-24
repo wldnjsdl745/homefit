@@ -2,15 +2,23 @@ from abc import ABC, abstractmethod
 from uuid import uuid4
 
 import httpx
+from pydantic import ValidationError
 
 from app.schemas import (
     Conditions,
+    ErrorResponse,
     FilterRegionsRequest,
     FilterRegionsResponse,
     UpsertConditionsRequest,
     UpsertConditionsResponse,
 )
 from app.services.merge_service import MergeService
+
+
+class BackendClientError(RuntimeError):
+    def __init__(self, error: ErrorResponse):
+        super().__init__(f"{error.code}: {error.message}")
+        self.error = error
 
 
 class BackendClient(ABC):
@@ -48,7 +56,16 @@ class HttpBackendClient(BackendClient):
             "/internal/upsert-conditions",
             payload.model_dump(mode="json"),
         )
-        return UpsertConditionsResponse.model_validate(response.json())
+        try:
+            return UpsertConditionsResponse.model_validate(response.json())
+        except (ValueError, ValidationError) as exc:
+            raise BackendClientError(
+                ErrorResponse(
+                    code="AI-BE-003",
+                    message="Backend 응답을 해석하지 못했어요. 잠시 후 다시 시도해주세요.",
+                    detail=str(exc),
+                )
+            ) from exc
 
     async def filter_regions(self, conditions: Conditions) -> FilterRegionsResponse:
         payload = FilterRegionsRequest(conditions=conditions)
@@ -56,7 +73,16 @@ class HttpBackendClient(BackendClient):
             "/internal/filter",
             payload.model_dump(mode="json"),
         )
-        return FilterRegionsResponse.model_validate(response.json())
+        try:
+            return FilterRegionsResponse.model_validate(response.json())
+        except (ValueError, ValidationError) as exc:
+            raise BackendClientError(
+                ErrorResponse(
+                    code="AI-BE-003",
+                    message="Backend 응답을 해석하지 못했어요. 잠시 후 다시 시도해주세요.",
+                    detail=str(exc),
+                )
+            ) from exc
 
     async def _post_with_retry(self, path: str, payload: dict) -> httpx.Response:
         last_error: httpx.HTTPError | None = None
@@ -67,13 +93,53 @@ class HttpBackendClient(BackendClient):
                     response = await client.post(f"{self.base_url}{path}", json=payload)
                     response.raise_for_status()
                     return response
+            except httpx.HTTPStatusError as error:
+                raise self._to_status_error(path, error) from error
             except httpx.HTTPError as error:
                 last_error = error
 
         if last_error is not None:
-            raise last_error
+            raise BackendClientError(
+                ErrorResponse(
+                    code="AI-BE-001",
+                    message="Backend에 연결할 수 없어요. 잠시 후 다시 시도해주세요.",
+                    detail=f"{path}: {last_error}",
+                )
+            ) from last_error
 
-        raise RuntimeError("HTTP retry loop exited unexpectedly.")
+        raise BackendClientError(
+            ErrorResponse(
+                code="AI-BE-004",
+                message="Backend 요청 처리 중 알 수 없는 문제가 발생했어요.",
+                detail=f"{path}: HTTP retry loop exited unexpectedly.",
+            )
+        )
+
+    @staticmethod
+    def _to_status_error(path: str, error: httpx.HTTPStatusError) -> BackendClientError:
+        status = error.response.status_code
+        try:
+            backend_error = ErrorResponse.model_validate(error.response.json())
+            detail = f"{path}: HTTP {status}; {backend_error.code}; {backend_error.detail}"
+        except (ValueError, ValidationError):
+            detail = f"{path}: HTTP {status}; {error.response.text[:300]}"
+
+        if 400 <= status < 500:
+            return BackendClientError(
+                ErrorResponse(
+                    code="AI-BE-002",
+                    message="요청 조건을 처리할 수 없어요. 입력값을 다시 확인해주세요.",
+                    detail=detail,
+                )
+            )
+
+        return BackendClientError(
+            ErrorResponse(
+                code="AI-BE-001",
+                message="Backend가 일시적으로 응답하지 않아요. 잠시 후 다시 시도해주세요.",
+                detail=detail,
+            )
+        )
 
 
 class MockBackendClient(BackendClient):
