@@ -2,6 +2,38 @@
 
 국토교통부 공공데이터 기반 주거 지역 추천 챗봇 MVP입니다.
 
+## Database Strategy
+
+DB는 환경에 따라 분리합니다.
+
+```text
+개발: Docker MySQL
+운영/배포: Amazon RDS MySQL
+```
+
+개발에서는 `docker-compose.yml`의 `db` 서비스와 `db-seed` 서비스를 사용합니다.
+
+운영 EC2에서는 Docker와 MySQL을 올리지 않고, Backend가 RDS endpoint로 직접 연결합니다.
+
+운영 Backend 환경변수 예시:
+
+```sh
+SPRING_DATASOURCE_URL=jdbc:mysql://your-rds-endpoint.ap-northeast-2.rds.amazonaws.com:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+SPRING_DATASOURCE_USERNAME=homefit
+SPRING_DATASOURCE_PASSWORD=your_rds_password
+```
+
+RDS 데이터 확인:
+
+```sh
+make rds-count RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com RDS_PASSWORD=your_rds_password
+```
+
+운영 systemd 예시:
+
+- [backend.service.example](deploy/systemd/backend.service.example)
+- [ai-server.service.example](deploy/systemd/ai-server.service.example)
+
 ## Frontend
 
 프론트엔드는 `frontend/` 디렉터리에 있으며 React, TypeScript, Vite, Tailwind CSS 기반입니다.

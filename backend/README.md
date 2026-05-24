@@ -100,15 +100,20 @@ src/main/resources/db/migration
 
 | 변수 | 설명 | 기본값 |
 |---|---|---|
-| `SPRING_DATASOURCE_URL` | MySQL JDBC URL | `jdbc:mysql://localhost:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8` |
-| `SPRING_DATASOURCE_USERNAME` | DB 사용자명 | `root` |
-| `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 | `${DB_PASSWORD}` 또는 빈 값 |
-| `DB_PASSWORD` | 로컬 DB 비밀번호 대체값 | 빈 값 |
+| `SPRING_DATASOURCE_URL` | MySQL JDBC URL | 개발 Docker Compose에서는 `jdbc:mysql://db:3306/homefit?...`, 운영에서는 RDS endpoint |
+| `SPRING_DATASOURCE_USERNAME` | DB 사용자명 | 개발 기본값 `homefit` |
+| `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 | 개발 기본값 `homefit` |
 
-Docker Compose에서는 기본적으로 아래 DB를 사용합니다.
+개발 Docker Compose에서는 기본적으로 아래 DB를 사용합니다.
 
 ```text
 jdbc:mysql://db:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+```
+
+운영 EC2에서는 RDS endpoint를 사용합니다.
+
+```text
+jdbc:mysql://your-rds-endpoint.ap-northeast-2.rds.amazonaws.com:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
 ```
 
 ## Local Run
@@ -139,6 +144,10 @@ docker compose up frontend ai-server
 
 ## Docker
 
+Docker는 개발 환경에서 사용합니다.
+
+운영 EC2에서는 Docker 없이 Spring Boot jar를 systemd service로 실행합니다.
+
 백엔드 Dockerfile은 Java 21 기반 이미지로 빌드합니다.
 
 - Build stage: `eclipse-temurin:21-jdk-alpine`
@@ -148,6 +157,22 @@ docker compose up frontend ai-server
 
 ```text
 EXPOSE 8080
+```
+
+## Production Run
+
+운영 EC2에서는 Backend를 systemd service로 실행하고 RDS MySQL에 연결합니다.
+
+권장 JVM 메모리 제한:
+
+```text
+JAVA_TOOL_OPTIONS=-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m
+```
+
+예시 파일:
+
+```text
+deploy/systemd/backend.service.example
 ```
 
 ## Security

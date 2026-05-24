@@ -1,5 +1,16 @@
 # DB 시드 데이터
 
+DB 사용 전략은 환경에 따라 나뉜다.
+
+```text
+개발: Docker MySQL
+운영/배포: Amazon RDS MySQL
+```
+
+Docker MySQL은 개발 중 빠른 실행과 테스트를 위한 DB다.
+
+RDS MySQL은 실제 배포에서 Backend가 연결하는 운영 DB다.
+
 DB 압축 파일은 `db/seed/` 디렉터리 내부에 넣어야 한다.
 
 권장 경로는 아래와 같다.
@@ -37,6 +48,34 @@ make docker-db-pack
 위 명령을 실행하면 `db/seed/seed-data.sql.gz` 파일이 생성된다.
 
 이 압축 파일은 Git에 올리지 않고, 필요한 사람에게 별도로 전달한다.
+
+## RDS에 seed 데이터 import
+
+RDS로 seed 데이터를 넣을 때는 RDS 접속 정보를 make 변수로 넘긴다.
+
+```sh
+make rds-import-seed \
+  RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com \
+  RDS_USER=homefit \
+  RDS_PASSWORD=your_rds_password \
+  RDS_DATABASE=homefit
+```
+
+RDS 데이터가 들어갔는지 확인한다.
+
+```sh
+make rds-count \
+  RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com \
+  RDS_USER=homefit \
+  RDS_PASSWORD=your_rds_password \
+  RDS_DATABASE=homefit
+```
+
+주의:
+
+- RDS import 전에는 Flyway migration이 먼저 적용되어 있어야 한다.
+- seed SQL에 `truncate` 또는 `delete`가 포함되어 있으면 기존 RDS 데이터가 삭제될 수 있다.
+- 운영 데이터가 쌓인 뒤에는 import 전에 백업을 확인한다.
 
 ## 로컬 MySQL 기준으로 Docker DB 새로고침
 

@@ -186,6 +186,13 @@ ai-server/.env.example
 
 ## 5. DB Seed 관리 규칙
 
+DB 사용 전략:
+
+```text
+개발: Docker MySQL
+운영/배포: Amazon RDS MySQL
+```
+
 ## 5.1 seed 파일 위치
 
 Docker DB 자동 import용 seed 파일은 아래 위치에 둡니다.
@@ -241,10 +248,17 @@ make docker-db-refresh-from-local
 
 ## 5.4 seed import 확인
 
-seed 데이터가 들어갔는지 확인할 때는 아래 쿼리를 사용합니다.
+개발 Docker DB에 seed 데이터가 들어갔는지 확인할 때는 아래 쿼리를 사용합니다.
 
 ```sh
 docker compose exec db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "select count(*) as regions from regions; select count(*) as housing_transactions from housing_transactions;"'
+```
+
+운영 RDS에 seed 데이터를 import하거나 확인할 때는 아래 명령을 사용합니다.
+
+```sh
+make rds-import-seed RDS_HOST=<rds-endpoint> RDS_PASSWORD=<password>
+make rds-count RDS_HOST=<rds-endpoint> RDS_PASSWORD=<password>
 ```
 
 ---
@@ -407,7 +421,7 @@ cd backend
 초기 운영 배포는 비용을 줄이기 위해 아래 구성을 우선합니다.
 
 ```text
-EC2 1대 + RDS MySQL 1대 + CloudWatch Logs 최소 사용
+EC2 1대 + RDS MySQL 1대
 ```
 
 초기에는 사용하지 않습니다.
@@ -420,6 +434,10 @@ EC2 1대 + RDS MySQL 1대 + CloudWatch Logs 최소 사용
 - Enhanced Monitoring
 - Container Insights
 
-EC2에는 Backend와 AI Server를 같은 Docker Compose 안에서 실행합니다.
+EC2에는 Docker를 올리지 않습니다.
+
+Backend와 AI Server는 같은 EC2 안에서 각각 systemd service로 실행합니다.
 
 LLM은 EC2에서 직접 실행하지 않고 외부 LLM API를 호출합니다.
+
+로그는 EC2 로컬 로그(`/var/log/homefit/`, `/var/log/nginx/`, `journalctl`)로 확인합니다.

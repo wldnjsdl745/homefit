@@ -9,6 +9,11 @@ LOCAL_MYSQL_HOST ?= localhost
 LOCAL_MYSQL_PORT ?= 3306
 LOCAL_MYSQL_USER ?= root
 LOCAL_MYSQL_DATABASE ?= homefit
+RDS_HOST ?=
+RDS_PORT ?= 3306
+RDS_DATABASE ?= homefit
+RDS_USER ?= homefit
+RDS_PASSWORD ?=
 
 .PHONY: help
 help:
@@ -42,6 +47,9 @@ help:
 	@printf "  make docker-db-refresh-from-local Dump local MySQL data and force-import it into Docker MySQL\n"
 	@printf "  make docker-db-backup   Export Docker MySQL data to backup-data.sql\n"
 	@printf "  make docker-db-shell    Open Docker MySQL shell\n"
+	@printf "  make rds-count          Count regions and housing_transactions in RDS\n"
+	@printf "  make rds-import-seed    Import db/seed seed data into RDS\n"
+	@printf "  make rds-shell          Open RDS MySQL shell\n"
 	@printf "  make docker-down-volumes Stop services and remove Docker volumes\n"
 	@printf "\n"
 	@printf "  ── 개별 서비스 컨트롤 ──\n"
@@ -202,6 +210,30 @@ docker-db-backup:
 .PHONY: docker-db-shell
 docker-db-shell:
 	$(COMPOSE) exec db sh -c 'mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"'
+
+.PHONY: rds-count
+rds-count:
+	@test -n "$(RDS_HOST)" || (printf "RDS_HOST is required.\n" && exit 1)
+	@test -n "$(RDS_PASSWORD)" || (printf "RDS_PASSWORD is required.\n" && exit 1)
+	MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)" \
+	  -e "select count(*) as regions from regions; select count(*) as housing_transactions from housing_transactions;"
+
+.PHONY: rds-import-seed
+rds-import-seed:
+	@test -f $(SEED_ARCHIVE) -o -f $(SEED_DIR)/seed-data.sql || (printf "$(SEED_ARCHIVE) or $(SEED_DIR)/seed-data.sql not found. Run make docker-db-pack first.\n" && exit 1)
+	@test -n "$(RDS_HOST)" || (printf "RDS_HOST is required.\n" && exit 1)
+	@test -n "$(RDS_PASSWORD)" || (printf "RDS_PASSWORD is required.\n" && exit 1)
+	@if [ -f "$(SEED_ARCHIVE)" ]; then \
+	  gzip -dc "$(SEED_ARCHIVE)" | MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)"; \
+	else \
+	  MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)" < "$(SEED_DIR)/seed-data.sql"; \
+	fi
+
+.PHONY: rds-shell
+rds-shell:
+	@test -n "$(RDS_HOST)" || (printf "RDS_HOST is required.\n" && exit 1)
+	@test -n "$(RDS_PASSWORD)" || (printf "RDS_PASSWORD is required.\n" && exit 1)
+	MYSQL_PWD="$(RDS_PASSWORD)" mysql -h "$(RDS_HOST)" -P "$(RDS_PORT)" -u "$(RDS_USER)" "$(RDS_DATABASE)"
 
 .PHONY: docker-down-volumes
 docker-down-volumes:
