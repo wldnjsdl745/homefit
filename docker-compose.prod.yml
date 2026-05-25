@@ -1,0 +1,48 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    expose:
+      - "8080"
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:-}
+    restart: unless-stopped
+
+  ai-server:
+    build:
+      context: ./ai-server
+      target: prod
+    expose:
+      - "8000"
+    environment:
+      BACKEND_URL: http://backend:8080
+      AI_BACKEND_MODE: ${AI_BACKEND_MODE:-http}
+      AI_PROVIDER: ${AI_PROVIDER:-openai_compatible}
+      AI_DUMMY_FAIL: ${AI_DUMMY_FAIL:-false}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-5000}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-EMPTY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-qwen/qwen-2.5-72b-instruct:free}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-30000}
+      LLM_PROMPT_STYLE: ${LLM_PROMPT_STYLE:-hermes}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost}
+      PYTHONPATH: /app
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_USE_MOCK_CHAT: ${VITE_USE_MOCK_CHAT:-false}
+    ports:
+      - "80:80"
+    depends_on:
+      - ai-server
+    restart: unless-stopped
