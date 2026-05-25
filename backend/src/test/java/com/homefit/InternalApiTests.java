@@ -21,7 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.url=jdbc:h2:mem:homefit;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
-        "spring.datasource.driver-class-name=org.h2.Driver"
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.jpa.hibernate.ddl-auto=create-drop"
 })
 @AutoConfigureMockMvc
 class InternalApiTests {
@@ -182,9 +183,9 @@ class InternalApiTests {
     ) {
         jdbcTemplate.update("""
                         insert into regions (
-                          sido, sigungu_code, sigungu, legal_dong_code, legal_dong_name
+                          sido, sigungu_code, sigungu, legal_dong_code, legal_dong_name, created_at, updated_at
                         )
-                        values (?, ?, ?, ?, ?)
+                        values (?, ?, ?, ?, ?, timestamp '2026-05-25 00:00:00', timestamp '2026-05-25 00:00:00')
                         """,
                 sido,
                 sigunguCode,
@@ -199,9 +200,9 @@ class InternalApiTests {
         for (int i = 0; i < count; i++) {
             jdbcTemplate.update("""
                             insert into housing_transactions (
-                              region_id, deal_type, deposit_amount, monthly_rent, contract_date
+                              region_id, deal_type, deposit_amount, monthly_rent, contract_date, created_at
                             )
-                            values (?, ?, ?, null, date '2026-04-25')
+                            values (?, ?, ?, null, date '2026-04-25', timestamp '2026-05-25 00:00:00')
                             """,
                     regionId,
                     dealType,
@@ -214,9 +215,9 @@ class InternalApiTests {
         for (int i = 0; i < count; i++) {
             jdbcTemplate.update("""
                             insert into housing_transactions (
-                              region_id, deal_type, sale_price_amount, deposit_amount, monthly_rent, contract_date
+                              region_id, deal_type, sale_price_amount, deposit_amount, monthly_rent, contract_date, created_at
                             )
-                            values (?, 'sale', ?, null, null, date '2026-04-25')
+                            values (?, 'sale', ?, null, null, date '2026-04-25', timestamp '2026-05-25 00:00:00')
                             """,
                     regionId,
                     salePriceAmount

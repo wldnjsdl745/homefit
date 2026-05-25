@@ -24,19 +24,19 @@ db/seed/seed-data.sql.gz
 - `db/seed/seed-data.sql.gz` 권장
 - `db/seed/seed-data.sql`
 
-덤프 파일에는 `regions`와 `housing_transactions` 테이블의 데이터가 포함되어야 한다.
+덤프 파일에는 Backend가 사용하는 테이블 구조와 초기 데이터가 함께 포함되어야 한다.
 
-Docker MySQL 볼륨이 비어 있는 상태에서 `docker compose up frontend ai-server`를 실행하면, backend가 먼저 실행되어 Flyway가 스키마를 생성한 뒤 이 시드 파일을 한 번만 import한다.
+Docker MySQL 볼륨이 비어 있는 상태에서 `docker compose up frontend ai-server`를 실행하면 `db-seed`가 이 시드 파일을 한 번만 import한다.
 
 이미 Docker DB에 `housing_transactions` 데이터가 있으면 import는 자동으로 건너뛴다.
 
 ## 시드 파일 생성 방법
 
-로컬 MySQL에서 데이터만 덤프한다.
+로컬 MySQL에서 스키마와 데이터를 함께 덤프한다.
 
 ```sh
-mysqldump --no-create-info --complete-insert --single-transaction \
-  -u root -p homefit regions housing_transactions > seed-data.sql
+mysqldump --single-transaction --routines --triggers \
+  -u root -p homefit > seed-data.sql
 ```
 
 Docker 자동 import용 압축 파일을 만든다.
@@ -49,9 +49,9 @@ make docker-db-pack
 
 이 압축 파일은 Git에 올리지 않고, 필요한 사람에게 별도로 전달한다.
 
-## RDS에 seed 데이터 import
+## RDS에 dump 데이터 import
 
-RDS로 seed 데이터를 넣을 때는 RDS 접속 정보를 make 변수로 넘긴다.
+RDS로 dump 데이터를 넣을 때는 RDS 접속 정보를 make 변수로 넘긴다.
 
 ```sh
 make rds-import-seed \
@@ -73,48 +73,10 @@ make rds-count \
 
 주의:
 
-- RDS import 전에는 Flyway migration이 먼저 적용되어 있어야 한다.
-- 이미 테이블이 생성된 RDS를 처음 연결한다면 기존 스키마가 `V1`~`V3` migration 결과와 같은지 확인한다.
-- Backend는 Flyway 이력이 없고 핵심 `V3` 테이블 구조가 이미 있으면 자동으로 `V3` baseline을 등록한다.
+- Backend는 DB schema 변경 작업을 실행하지 않는다.
+- RDS import 전에는 dump SQL에 필요한 테이블 구조가 포함되어 있는지 확인한다.
 - seed SQL에 `truncate` 또는 `delete`가 포함되어 있으면 기존 RDS 데이터가 삭제될 수 있다.
 - 운영 데이터가 쌓인 뒤에는 import 전에 백업을 확인한다.
-
-## 기존 RDS 데이터를 유지하고 Flyway V3로 채택
-
-RDS에 이미 대용량 데이터가 들어간 상태라면 데이터 테이블을 삭제하지 않는다.
-Backend는 아래 구조가 이미 있으면 Flyway에게 현재 RDS 스키마가 `V3`까지 적용된 상태라고 자동 등록한다.
-
-- `regions`
-- `housing_transactions`
-- `chat_messages`
-- `housing_transactions.sale_price_amount`
-
-먼저 RDS의 Flyway 이력을 확인한다.
-
-```sh
-make rds-flyway-history \
-  RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com \
-  RDS_USER=homefit \
-  RDS_PASSWORD=your_rds_password \
-  RDS_DATABASE=homefit
-```
-
-`V1__init.sql` 실패 기록이 남아 있다면 `baseline-on-migrate`만 켜도 다시 실패할 수 있다.
-이 경우 데이터 테이블은 유지하고 Flyway 이력 테이블만 삭제한다.
-
-```sh
-make rds-flyway-adopt-v3 \
-  RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com \
-  RDS_USER=homefit \
-  RDS_PASSWORD=your_rds_password \
-  RDS_DATABASE=homefit \
-  CONFIRM_DROP_FLYWAY_HISTORY=yes
-```
-
-위 명령은 `regions`, `housing_transactions`, `chat_messages` 같은 데이터 테이블을 삭제하지 않고 `flyway_schema_history` 메타데이터 테이블만 삭제한다.
-
-그 다음 Backend를 RDS 연결 정보로 실행한다.
-Backend가 정상 기동되면 Flyway는 기존 RDS 스키마를 `V3` baseline으로 기록하고, 이후 `V4`부터 적용한다.
 
 ## 로컬 MySQL 기준으로 Docker DB 새로고침
 
@@ -126,10 +88,9 @@ make docker-db-refresh-from-local
 
 이 명령은 아래 작업을 순서대로 수행한다.
 
-1. 로컬 MySQL의 `homefit` DB에서 `regions`, `housing_transactions` 데이터만 `seed-data.sql`로 덤프한다.
+1. 로컬 MySQL의 `homefit` DB 전체 구조와 데이터를 `seed-data.sql`로 덤프한다.
 2. `seed-data.sql`을 `db/seed/seed-data.sql.gz`로 압축한다.
-3. Docker backend 이미지를 다시 빌드하고 실행해 Flyway 마이그레이션이 적용된 상태를 만든다.
-4. Docker MySQL의 `regions`, `housing_transactions` 테이블을 비운 뒤 새 seed 데이터를 import한다.
+3. Docker MySQL의 `regions`, `housing_transactions` 테이블을 비운 뒤 새 seed 데이터를 import한다.
 
 즉, 이 명령은 Docker DB의 기존 `regions`, `housing_transactions` 데이터를 덮어쓴다. `docker compose down -v`를 실행하지 않으므로 `frontend_node_modules` 같은 다른 Docker volume은 삭제하지 않는다.
 

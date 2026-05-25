@@ -89,7 +89,7 @@ git checkout -- <file>
 예시:
 
 - API 명세 수정
-- Backend migration 수정
+- Backend DB 연동 수정
 - seed 자동화 수정
 - 문서 추가
 
@@ -220,12 +220,6 @@ seed dump 파일은 용량이 크고 데이터가 자주 바뀔 수 있으므로
 *.sql.gz
 ```
 
-단, Flyway migration SQL은 예외로 Git에 포함합니다.
-
-```text
-!backend/src/main/resources/db/migration/*.sql
-```
-
 ## 5.3 로컬 MySQL -> Docker DB 동기화
 
 로컬 MySQL 데이터를 Docker DB에 다시 반영할 때는 아래 명령을 사용합니다.
@@ -236,10 +230,9 @@ make docker-db-refresh-from-local
 
 이 명령의 역할:
 
-1. 로컬 MySQL의 `regions`, `housing_transactions` 데이터를 dump
+1. 로컬 MySQL의 schema와 데이터를 dump
 2. `db/seed/seed-data.sql.gz` 생성
-3. Docker backend를 빌드/실행해서 Flyway migration 적용
-4. Docker DB의 seed 대상 테이블을 비우고 새 데이터 import
+3. Docker DB의 seed 대상 테이블을 비우고 새 데이터 import
 
 주의:
 
@@ -271,14 +264,14 @@ Backend 기준:
 - Spring Boot 3.5.14
 - Gradle
 - MySQL
-- Flyway
 
 주요 책임:
 
 - 내부 API 제공
 - conditions 저장
 - 거래 데이터 필터링
-- DB migration
+
+DB schema는 dump SQL import로 준비하며 Backend는 schema 변경 작업을 수행하지 않습니다.
 
 Backend는 Frontend가 직접 호출하지 않습니다.
 

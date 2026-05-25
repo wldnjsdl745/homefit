@@ -23,15 +23,8 @@ SPRING_DATASOURCE_USERNAME=homefit
 SPRING_DATASOURCE_PASSWORD=your_rds_password
 ```
 
-이미 테이블이 생성된 RDS를 처음 연결하는 경우에는 Backend가 핵심 테이블 존재 여부를 확인합니다.
-`regions`, `housing_transactions`, `chat_messages`, `housing_transactions.sale_price_amount`가 있고 Flyway 이력이 없으면 현재 스키마를 자동으로 `V3` baseline으로 등록합니다.
-
-기존 RDS에 실패한 Flyway 이력이 남아 있으면 먼저 이력만 확인/정리합니다. 데이터 테이블은 삭제하지 않습니다.
-
-```sh
-make rds-flyway-history RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com RDS_PASSWORD=your_rds_password
-make rds-flyway-adopt-v3 RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com RDS_PASSWORD=your_rds_password CONFIRM_DROP_FLYWAY_HISTORY=yes
-```
+운영 RDS는 스키마와 초기 데이터를 포함한 dump 파일을 import한 뒤 Backend가 연결합니다.
+Backend는 DB schema 변경 작업을 실행하지 않습니다.
 
 RDS 데이터 확인:
 

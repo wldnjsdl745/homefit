@@ -43,7 +43,7 @@ Frontend -> AI Server -> Backend -> MySQL
 |---|---|
 | Frontend | 채팅 UI, 사용자 입력 수집, `bot_messages` 렌더링 |
 | AI Server | 공개 API, 대화 흐름 제어, Backend 호출, LLM 연동, fallback 처리 |
-| Backend | 내부 API, 조건 저장, 거래 데이터 필터링, DB migration |
+| Backend | 내부 API, 조건 저장, 거래 데이터 필터링, RDS 연결 |
 | MySQL | 지역/거래 데이터와 세션 조건 저장. 개발은 Docker MySQL, 운영은 Amazon RDS MySQL |
 
 핵심 원칙:
@@ -170,7 +170,6 @@ Backend는 내부 API와 DB 접근을 담당합니다.
 - Spring Security
 - Spring Validation
 - Spring Boot Actuator
-- Flyway
 - MySQL Driver
 - Lombok
 
@@ -209,7 +208,7 @@ MySQL은 세션 조건과 거래 원천 데이터를 저장합니다.
 | `housing_transactions` | 전세/월세/매매 거래 데이터 |
 | `chat_messages` | 사용자 입력과 누적 조건 |
 
-Schema 변경은 Flyway migration으로 관리합니다.
+Schema와 초기 데이터는 dump SQL import로 관리합니다. Backend는 실행 시 schema 변경 작업을 수행하지 않습니다.
 
 ---
 
@@ -533,7 +532,7 @@ Ollama는 로컬 개발 또는 실험용입니다.
 3. RDS public access가 꺼져 있는가
 4. RDS inbound 3306이 EC2 security group에서만 허용되는가
 5. Backend가 RDS에 연결되는가
-6. Flyway migration이 성공했는가
+6. RDS schema와 dump 데이터 import가 완료되었는가
 7. /healthz, /actuator/health가 정상인가
 8. Frontend -> AI Server -> Backend -> RDS 흐름이 성공하는가
 9. /var/log/homefit/와 /var/log/nginx/에 로그가 남는가
