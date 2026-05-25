@@ -33,6 +33,7 @@ class InternalApiTests {
     @BeforeEach
     void setUp() {
         chatMessageRepository.deleteAll();
+        jdbcTemplate.update("delete from nearby_facilities");
         jdbcTemplate.update("delete from housing_transactions");
         jdbcTemplate.update("delete from regions");
     }
@@ -156,6 +157,7 @@ class InternalApiTests {
         insertTransactionsWithoutBuildingName(mapo, "jeonse", 10_000L, 3);
         insertTransactionsWithoutBuildingName(seongdong, "jeonse", 15_000L, 2);
         insertTransactionsWithoutBuildingName(yongsan, "jeonse", 90_000L, 5);
+        insertFacility("school", "마포구", null, "마포구 전체 학교");
 
         mockMvc.perform(post("/internal/filter")
                         .contentType(APPLICATION_JSON)
@@ -170,7 +172,9 @@ class InternalApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.regions", hasSize(2)))
                 .andExpect(jsonPath("$.apartments", hasSize(2)))
-                .andExpect(jsonPath("$.apartments[0].name").doesNotExist());
+                .andExpect(jsonPath("$.apartments[0].name").doesNotExist())
+                .andExpect(jsonPath("$.apartments[0].infrastructure_summary")
+                        .value("인프라(마포구 전체): 학교 1, 의료 0, 운동시설 0, 유흥시설 0, 교통 0"));
     }
 
     @Test
@@ -275,5 +279,19 @@ class InternalApiTests {
                     depositAmount
             );
         }
+    }
+
+    private void insertFacility(String facilityType, String sigungu, String legalDongName, String name) {
+        jdbcTemplate.update("""
+                        insert into nearby_facilities (
+                          source_key, facility_type, name, sido, sigungu, legal_dong_name
+                        )
+                        values ('test', ?, ?, '서울특별시', ?, ?)
+                        """,
+                facilityType,
+                name,
+                sigungu,
+                legalDongName
+        );
     }
 }

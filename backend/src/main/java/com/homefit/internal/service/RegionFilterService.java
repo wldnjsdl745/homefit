@@ -284,6 +284,8 @@ public class RegionFilterService {
                     sql,
                     ps -> bindStrings(ps, params),
                     rs -> {
+                        String sigungu = rs.getString("sigungu");
+                        String legalDong = rs.getString("legal_dong_name");
                         FacilityInsight insight = new FacilityInsight(
                                 rs.getInt("school_count"),
                                 rs.getInt("medical_count"),
@@ -291,13 +293,11 @@ public class RegionFilterService {
                                 rs.getInt("nightlife_count"),
                                 rs.getInt("transit_count")
                         );
-                        putIfAbsent(
-                                result,
-                                new RegionKey(rs.getString("sigungu"), rs.getString("legal_dong_name")),
-                                insight
-                        );
+                        if (legalDong != null && !legalDong.isBlank()) {
+                            putIfAbsent(result, new RegionKey(sigungu, legalDong), insight);
+                        }
                         result.merge(
-                                new RegionKey(rs.getString("sigungu"), null),
+                                new RegionKey(sigungu, null),
                                 insight,
                                 RegionFilterService::mergeFacilities
                         );
