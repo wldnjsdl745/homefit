@@ -7,11 +7,10 @@
 Dialog 흐름:
   step 0 (첫 호출):     자본금 질문
   step 1 (답변 1번):    거래 유형 질문 (전세/월세/매매 칩)
-  step 2 (답변 2번):    통근 목적지 질문 (업무지구 칩)
-  step 3 (답변 3번):
+  step 2 (답변 2번):
     - deal_type=monthly_rent & monthly_rent_max 없음 → 월세 예산 질문
-    - 그 외 (전세/매매) → 완료
-  step 4 (답변 4번):    완료 (월세 예산 받은 후)
+    - 그 외 → 희망 지역 질문
+  step 3 이후: 희망 지역 → 통근/자주 가는 곳 → 선호 연령층 → 중요 인프라 → 결과
 
 완료 = 누적 raw_message가 있으면 LLM 1회 → BE 필터 → 결과.
 
@@ -25,7 +24,14 @@ from __future__ import annotations
 import httpx
 
 from app.config import Settings
-from app.schemas import ChatRequest, ChatResponse, CommuteDestination, Conditions, DealType, ErrorResponse
+from app.schemas import (
+    ChatRequest,
+    ChatResponse,
+    CommuteDestination,
+    Conditions,
+    DealType,
+    ErrorResponse,
+)
 from app.services.backend_client import BackendClient, BackendClientError
 from app.services.llm_provider import DummyLlmProvider, LlmProvider
 from app.services.merge_service import MergeService
@@ -169,16 +175,84 @@ class ChatService:
                     bot_messages=self.message_builder.ask_deal_type(),
                 )
 
+            conditions = state.conditions
+
             if step == 2:
+                if (
+                    conditions.deal_type == DealType.MONTHLY_RENT
+                    and conditions.monthly_rent_max is None
+                ):
+                    return ChatResponse(
+                        session_id=sid,
+                        state="asking",
+                        bot_messages=self.message_builder.ask_monthly_rent(),
+                    )
                 return ChatResponse(
                     session_id=sid,
                     state="asking",
-                    bot_messages=self.message_builder.ask_commute(),
+                    bot_messages=self.message_builder.ask_preferred_region(),
                 )
 
-            conditions = state.conditions
+            if (
+                step == 3
+                and conditions.deal_type == DealType.MONTHLY_RENT
+                and conditions.monthly_rent_max is None
+            ):
+                return ChatResponse(
+                    session_id=sid,
+                    state="asking",
+                    bot_messages=self.message_builder.ask_monthly_rent(),
+                )
 
-            if step == 3 and conditions.deal_type == DealType.MONTHLY_RENT and conditions.monthly_rent_max is None:
+            if conditions.deal_type == DealType.MONTHLY_RENT:
+                if step == 3:
+                    return ChatResponse(
+                        session_id=sid,
+                        state="asking",
+                        bot_messages=self.message_builder.ask_preferred_region(),
+                    )
+                if step == 4:
+                    return ChatResponse(
+                        session_id=sid,
+                        state="asking",
+                        bot_messages=self.message_builder.ask_commute(),
+                    )
+                if step == 5:
+                    return ChatResponse(
+                        session_id=sid,
+                        state="asking",
+                        bot_messages=self.message_builder.ask_age_group(),
+                    )
+                if step == 6:
+                    return ChatResponse(
+                        session_id=sid,
+                        state="asking",
+                        bot_messages=self.message_builder.ask_infrastructure(),
+                    )
+            else:
+                if step == 3:
+                    return ChatResponse(
+                        session_id=sid,
+                        state="asking",
+                        bot_messages=self.message_builder.ask_commute(),
+                    )
+                if step == 4:
+                    return ChatResponse(
+                        session_id=sid,
+                        state="asking",
+                        bot_messages=self.message_builder.ask_age_group(),
+                    )
+                if step == 5:
+                    return ChatResponse(
+                        session_id=sid,
+                        state="asking",
+                        bot_messages=self.message_builder.ask_infrastructure(),
+                    )
+
+            if (
+                conditions.deal_type == DealType.MONTHLY_RENT
+                and conditions.monthly_rent_max is None
+            ):
                 return ChatResponse(
                     session_id=sid,
                     state="asking",

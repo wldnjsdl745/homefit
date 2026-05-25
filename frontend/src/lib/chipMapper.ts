@@ -22,15 +22,62 @@ export type ChipAction =
 export class ChipMapper {
   private readonly actions = new Map<string, ChipAction>([
     // ─── Q1: 자본금 ─────────────────────────────────────
-    ["budget_under_1", { kind: "submit", raw: { budget_max: 50000000 }, label: "1억 미만" }],
+    [
+      "budget_under_1",
+      { kind: "submit", raw: { budget_max: 50000000 }, label: "1억 미만" },
+    ],
     ["budget_1_3", { kind: "submit", raw: { budget_max: 200000000 }, label: "1-3억" }],
     ["budget_3_5", { kind: "submit", raw: { budget_max: 400000000 }, label: "3-5억" }],
-    ["budget_5_above", { kind: "submit", raw: { budget_max: 700000000 }, label: "5억 이상" }],
+    [
+      "budget_5_above",
+      { kind: "submit", raw: { budget_max: 700000000 }, label: "5억 이상" },
+    ],
 
     // ─── Q2: 거래 유형 ──────────────────────────────────
     ["deal_jeonse", { kind: "submit", raw: { deal_type: "jeonse" }, label: "전세" }],
-    ["deal_monthly_rent", { kind: "submit", raw: { deal_type: "monthly_rent" }, label: "월세" }],
+    [
+      "deal_monthly_rent",
+      { kind: "submit", raw: { deal_type: "monthly_rent" }, label: "월세" },
+    ],
     ["deal_sale", { kind: "submit", raw: { deal_type: "sale" }, label: "매매" }],
+
+    // ─── Q5: 선호 연령층 ────────────────────────────────
+    [
+      "age_young_adult",
+      { kind: "submit", raw: { age_group: "young_adult" }, label: "20-30대 많은 곳" },
+    ],
+    ["age_family", { kind: "submit", raw: { age_group: "family" }, label: "아이 키우는 가족" }],
+    [
+      "age_senior",
+      { kind: "submit", raw: { age_group: "senior" }, label: "조용한 고령층 지역" },
+    ],
+    ["age_any", { kind: "submit", raw: { age_group: "any" }, label: "상관없음" }],
+
+    // ─── Q6: 중요 인프라 ────────────────────────────────
+    [
+      "infra_school",
+      { kind: "submit", raw: { infrastructure_priorities: ["school"] }, label: "학교" },
+    ],
+    [
+      "infra_medical",
+      { kind: "submit", raw: { infrastructure_priorities: ["medical"] }, label: "병원" },
+    ],
+    [
+      "infra_fitness",
+      { kind: "submit", raw: { infrastructure_priorities: ["fitness"] }, label: "운동시설" },
+    ],
+    [
+      "infra_quiet",
+      { kind: "submit", raw: { infrastructure_priorities: ["quiet"] }, label: "조용한 곳" },
+    ],
+    [
+      "infra_transit",
+      { kind: "submit", raw: { infrastructure_priorities: ["transit"] }, label: "교통" },
+    ],
+    [
+      "infra_any",
+      { kind: "submit", raw: { infrastructure_priorities: [] }, label: "상관없음" },
+    ],
 
     // ─── 액션 (값 매핑 없음) ────────────────────────────
     ["restart", { kind: "restart", label: "다시 추천" }],

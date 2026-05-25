@@ -36,7 +36,7 @@ export function MessageBubble({ message, onChipClick, chipsDisabled }: MessageBu
           AI
         </div>
         <div className="max-w-[88%] border border-neutral-200 bg-paper px-4 py-3 text-[15px] leading-7 text-ink sm:max-w-[76%]">
-          {message.body.content}
+          <MarkdownText text={message.body.content} />
         </div>
       </div>
     );
@@ -53,4 +53,55 @@ export function MessageBubble({ message, onChipClick, chipsDisabled }: MessageBu
   }
 
   return null;
+}
+
+function MarkdownText({ text }: { text: string }) {
+  return (
+    <div className="space-y-2">
+      {text.split("\n").map((line, index) => {
+        if (line.trim() === "") {
+          return <div key={index} className="h-1" />;
+        }
+
+        if (line.startsWith("### ")) {
+          return (
+            <div key={index} className="pt-1 text-[15px] font-bold text-ink">
+              {renderInline(line.slice(4))}
+            </div>
+          );
+        }
+
+        if (line.startsWith("- ")) {
+          return (
+            <div key={index} className="flex gap-2 pl-1 text-[14px] leading-6 text-ink">
+              <span className="text-muted">•</span>
+              <span>{renderInline(line.slice(2))}</span>
+            </div>
+          );
+        }
+
+        return (
+          <p key={index} className="text-[14px] leading-6 text-ink">
+            {renderInline(line)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function renderInline(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={index} className="font-bold">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <span key={index}>{part}</span>;
+  });
 }

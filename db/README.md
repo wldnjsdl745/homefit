@@ -13,7 +13,15 @@ db/seed/seed-data.sql.gz
 - `db/seed/seed-data.sql.gz` 권장
 - `db/seed/seed-data.sql`
 
-덤프 파일에는 `regions`와 `housing_transactions` 테이블의 데이터가 포함되어야 한다.
+덤프 파일에는 최소한 `regions`와 `housing_transactions` 테이블의 데이터가 포함되어야 한다.
+
+아파트 단지 추천 기능까지 사용하려면 아래 테이블 데이터도 포함하는 것이 좋다.
+
+- `apartment_complexes`
+- `apartment_transactions`
+- `nearby_facilities`
+- `neighborhood_demographics`
+- `complex_feature_scores`
 
 Docker MySQL 볼륨이 비어 있는 상태에서 `docker compose up frontend ai-server`를 실행하면, backend가 먼저 실행되어 Flyway가 스키마를 생성한 뒤 이 시드 파일을 한 번만 import한다.
 
@@ -37,6 +45,24 @@ make docker-db-pack
 위 명령을 실행하면 `db/seed/seed-data.sql.gz` 파일이 생성된다.
 
 이 압축 파일은 Git에 올리지 않고, 필요한 사람에게 별도로 전달한다.
+
+## 공모전/추천 데이터 적재
+
+공공데이터포털, 국토교통부 데이터 통합채널, LOCALDATA, KOSIS/SGIS 등에서 내려받은 CSV는 아래 스크립트로 적재한다.
+
+```sh
+python scripts/load_recommendation_data.py complexes --csv data/raw/kapt_complexes.csv
+python scripts/load_recommendation_data.py facilities --type school --csv data/raw/schools.csv --source-key school_location
+python scripts/load_recommendation_data.py facilities --type nightlife --csv data/raw/localdata_nightlife.csv --source-key localdata_license
+python scripts/load_recommendation_data.py demographics --csv data/raw/population_by_age.csv --source-key kosis_population
+python scripts/load_recommendation_data.py features
+```
+
+주의:
+
+- `LOCALDATA` 일부 CSV의 `좌표정보(x/y)`는 WGS84 위경도가 아니라 TM 좌표일 수 있다. 현재 스크립트는 WGS84 위도/경도 컬럼만 거리 계산에 사용한다.
+- API 키나 자료신청이 필요한 데이터는 포털에서 먼저 내려받은 뒤 `data/raw/`에 둔다.
+- 단지별 추천에는 `apartment_complexes.lat/lng`와 `nearby_facilities.lat/lng`가 있어야 한다.
 
 ## 로컬 MySQL 기준으로 Docker DB 새로고침
 

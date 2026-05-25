@@ -44,9 +44,14 @@ _SYSTEM_PROMPT_KO = (
     "  - budget_max: 정수, 단위는 원(KRW)\n"
     "  - deal_type: 'jeonse'(전세), 'monthly_rent'(월세), 'sale'(매매) 중 하나\n"
     "  - monthly_rent_max: 정수, 단위는 원(KRW). deal_type=monthly_rent 일 때만 포함.\n"
+    "  - preferred_region: 문자열. 사용자가 희망한 서울 구/동/역세권. 없거나 상관없으면 생략.\n"
     "  - workplace: 문자열. 사용자가 언급한 직장/출퇴근 동네 이름. "
     "예: '논현', '역삼', '광화문', '여의도', '홍대'. "
     "동(洞) 이름, 역 이름, 거리 이름 모두 그대로 추출. 없으면 생략.\n"
+    "  - age_group: 'young_adult'(20-30대), 'family'(아이/가족), "
+    "'senior'(고령층), 'any'(상관없음) 중 하나.\n"
+    "  - infrastructure_priorities: 배열. 'school', 'medical', 'fitness', "
+    "'quiet', 'transit', 'nightlife' 중 사용자가 중요하다고 말한 것만 포함.\n"
     "\n"
     "한국어 금액 단위 변환 (반드시 정확히 따를 것):\n"
     "  - 1만원 = 10000\n"
@@ -71,11 +76,17 @@ _SYSTEM_PROMPT_KO = (
     '예시:\n'
     '  입력: "2억 정도 있어요"              → {"budget_max": 200000000}\n'
     '  입력: "전세로 보고 있어"             → {"deal_type": "jeonse"}\n'
-    '  입력: "월세 80만원"                  → {"deal_type": "monthly_rent", "monthly_rent_max": 800000}\n'
+    '  입력: "월세 80만원"                  → '
+    '{"deal_type": "monthly_rent", "monthly_rent_max": 800000}\n'
     '  입력: "매매로 볼게요"                → {"deal_type": "sale"}\n'
     '  입력: "1.5억 전세"                   → {"budget_max": 150000000, "deal_type": "jeonse"}\n'
+    '  입력: "마포구 쪽이 좋아요"           → {"preferred_region": "마포구"}\n'
     '  입력: "논현역 근처에서 일해요"       → {"workplace": "논현"}\n'
     '  입력: "역삼에 회사가 있어요"         → {"workplace": "역삼"}\n'
+    '  입력: "20대가 많은 곳"               → {"age_group": "young_adult"}\n'
+    '  입력: "아이 키우기 좋은 곳"          → {"age_group": "family"}\n'
+    '  입력: "학교랑 병원이 중요해요"       → '
+    '{"infrastructure_priorities": ["school", "medical"]}\n'
     '  입력: "상관없어요"                   → {}'
 )
 

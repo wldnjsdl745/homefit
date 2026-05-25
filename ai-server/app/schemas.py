@@ -30,6 +30,26 @@ class CommuteDestination(StrEnum):
     JAMSIL = "jamsil"
 
 
+class AgeGroupPreference(StrEnum):
+    """사용자가 함께 살고 싶어 하는 동네 연령층/생활 단계."""
+
+    YOUNG_ADULT = "young_adult"
+    FAMILY = "family"
+    SENIOR = "senior"
+    ANY = "any"
+
+
+class InfrastructurePriority(StrEnum):
+    """지역 추천에 반영할 주변 인프라 우선순위."""
+
+    SCHOOL = "school"
+    MEDICAL = "medical"
+    FITNESS = "fitness"
+    QUIET = "quiet"
+    TRANSIT = "transit"
+    NIGHTLIFE = "nightlife"
+
+
 class Conditions(BaseModel):
     """사용자 추천 조건 누적 상태.
 
@@ -80,6 +100,18 @@ class Conditions(BaseModel):
         ),
     ] = None
 
+    preferred_region: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "사용자가 희망하는 서울 지역명. 구/동/역세권 자유 텍스트. "
+                "예: '마포구', '성수동', '강남 근처'. 없으면 null."
+            ),
+            examples=["마포구", "성수동", "강남 근처"],
+        ),
+    ] = None
+
     commute_destination: Annotated[
         CommuteDestination | None,
         Field(
@@ -116,6 +148,30 @@ class Conditions(BaseModel):
                 "추출 방법: **FE가 raw에 직접 넣어 전송** (LLM은 정책상 추출 거부). "
             ),
             examples=["강남 근처면 좋겠어요", "역세권 선호", ""],
+        ),
+    ] = None
+
+    age_group: Annotated[
+        AgeGroupPreference | None,
+        Field(
+            default=None,
+            description=(
+                "비슷한 생활권으로 선호하는 연령층/생활 단계. "
+                "young_adult / family / senior / any."
+            ),
+            examples=["young_adult", "family", "senior", "any"],
+        ),
+    ] = None
+
+    infrastructure_priorities: Annotated[
+        list[InfrastructurePriority] | None,
+        Field(
+            default=None,
+            description=(
+                "추천에 강조할 인프라 목록. school / medical / fitness / quiet / "
+                "transit / nightlife. 여러 개 가능."
+            ),
+            examples=[["school", "medical"], ["quiet", "transit"]],
         ),
     ] = None
 
@@ -215,6 +271,9 @@ class ApartmentDetail(BaseModel):
     built_year: int | None = Field(default=None, alias="built_year")
     commute_minutes: int | None = Field(default=None, alias="commute_minutes")
     deal_count: int | None = Field(default=None, alias="deal_count")
+    age_profile: str | None = Field(default=None, alias="age_profile")
+    infrastructure_summary: str | None = Field(default=None, alias="infrastructure_summary")
+    recommendation_reason: str | None = Field(default=None, alias="recommendation_reason")
 
     model_config = ConfigDict(populate_by_name=True)
 

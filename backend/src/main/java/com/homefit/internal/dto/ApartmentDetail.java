@@ -14,5 +14,8 @@ public record ApartmentDetail(
         @JsonProperty("avg_area_sqm") Double avgAreaSqm,
         @JsonProperty("built_year") Integer builtYear,
         @JsonProperty("commute_minutes") Integer commuteMinutes,
-        @JsonProperty("deal_count") Integer dealCount
+        @JsonProperty("deal_count") Integer dealCount,
+        @JsonProperty("age_profile") String ageProfile,
+        @JsonProperty("infrastructure_summary") String infrastructureSummary,
+        @JsonProperty("recommendation_reason") String recommendationReason
 ) {}
