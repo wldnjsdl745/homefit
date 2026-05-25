@@ -41,18 +41,25 @@ class ResultFormatter:
 
         parts: list[str] = []
         for index, apt in enumerate(apartments[:3], start=1):
+            is_region_candidate = not apt.name
             location = f"{apt.dong} {apt.name}" if apt.name else " ".join(
                 part for part in (apt.sigungu, apt.dong) if part
             )
             summary: list[str] = [apt.sigungu]
             if apt.avg_price_manwon:
-                summary.append(f"평균 **{self._fmt_manwon_value(apt.avg_price_manwon)}**")
+                price_label = "예산 내 평균" if is_region_candidate else "평균"
+                summary.append(
+                    f"{price_label} **{self._fmt_manwon_value(apt.avg_price_manwon)}**"
+                )
+            if apt.name and apt.avg_area_sqm:
+                summary.append(f"{apt.avg_area_sqm:g}㎡")
             if apt.commute_minutes is not None and dest_label:
                 summary.append(f"{dest_label} **{apt.commute_minutes}분**")
             if apt.deal_count:
-                summary.append(f"거래 {apt.deal_count}건")
+                count_label = "표본" if is_region_candidate else "거래"
+                summary.append(f"{count_label} {apt.deal_count}건")
 
-            reason = self._short_reason(apt)
+            reason = self._short_reason(apt, is_region_candidate)
             parts.append(
                 f"### {index}. {location}\n"
                 f"- {' · '.join(summary)}\n"
@@ -60,7 +67,13 @@ class ResultFormatter:
             )
 
         apt_text = "\n\n".join(parts)
-        return f"{header}\n{budget_line}\n\n{apt_text}"
+        note = ""
+        if not has_named_complex:
+            note = (
+                "\n전월세 seed에 단지명/면적이 없어 법정동 단위로 계산했고, "
+                "금액은 예산 이하 거래 평균입니다."
+            )
+        return f"{header}\n{budget_line}{note}\n\n{apt_text}"
 
     def _fmt_deal(self, deal_type: DealType | None) -> str:
         if deal_type == DealType.JEONSE:
@@ -87,7 +100,7 @@ class ResultFormatter:
             return f"{won / 100_000_000:g}억"
         return f"{manwon}만원"
 
-    def _short_reason(self, apt: ApartmentDetail) -> str:
+    def _short_reason(self, apt: ApartmentDetail, is_region_candidate: bool = False) -> str:
         reasons: list[str] = []
 
         if apt.age_profile:
@@ -95,26 +108,38 @@ class ResultFormatter:
 
         if apt.infrastructure_summary:
             infra = self._parse_infra(apt.infrastructure_summary)
+            scope = self._infra_scope(apt.infrastructure_summary)
             school = infra.get("학교", 0)
             medical = infra.get("의료", 0)
             nightlife = infra.get("유흥시설", 0)
             transit = infra.get("교통", 0)
 
             if school > 0:
-                reasons.append(f"학교 {school}곳")
+                reasons.append(f"{scope}학교 {school}곳")
             if medical > 0:
-                reasons.append(f"의료 {medical}곳")
+                reasons.append(f"{scope}의료 {medical}곳")
             if transit > 0:
-                reasons.append(f"교통 {transit}곳")
-            if nightlife <= 3:
+                reasons.append(f"{scope}교통 {transit}곳")
+            if not scope and nightlife <= 3:
                 reasons.append("유흥시설 적음")
 
         if not reasons and apt.recommendation_reason:
             text = apt.recommendation_reason.replace("추천 이유: ", "")
-            reasons.extend(text.split(", ")[:2])
+            reason_parts = text.split(", ")
+            if is_region_candidate:
+                reason_parts = [
+                    reason for reason in reason_parts
+                    if reason != "최근 거래 표본이 충분함"
+                ]
+            reasons.extend(reason_parts[:2])
 
         if not reasons:
-            reasons.append("예산과 출퇴근 조건에 맞는 후보")
+            fallback = (
+                "예산 내 거래가 확인된 지역 후보"
+                if is_region_candidate
+                else "예산과 출퇴근 조건에 맞는 후보"
+            )
+            reasons.append(fallback)
 
         return " · ".join(reasons[:3])
 
@@ -123,3 +148,7 @@ class ResultFormatter:
         for key, value in re.findall(r"(학교|의료|운동시설|유흥시설|교통) (\d+)", text):
             result[key] = int(value)
         return result
+
+    def _infra_scope(self, text: str) -> str:
+        match = re.search(r"인프라\(([^)]+)\):", text)
+        return f"{match.group(1)} 기준 " if match else ""

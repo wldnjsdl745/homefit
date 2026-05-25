@@ -83,6 +83,33 @@ def test_result_formatter_shows_region_lifestyle_explanations() -> None:
     )
 
     assert "서울 지역 후보" in result
+    assert "법정동 단위로 계산" in result
+    assert "예산 내 평균" in result
     assert "연령층" in result
     assert "학교 8곳" in result
     assert "의료 12곳" in result
+
+
+def test_result_formatter_marks_gu_level_infrastructure() -> None:
+    formatter = ResultFormatter()
+    apartments = [
+        ApartmentDetail(
+            sigungu="송파구",
+            dong="마천동",
+            avg_price_manwon=13_522,
+            deal_count=800,
+            infrastructure_summary=(
+                "인프라(송파구 전체): 학교 90, 의료 0, "
+                "운동시설 0, 유흥시설 210, 교통 0"
+            ),
+            recommendation_reason="추천 이유: 최근 거래 표본이 충분함",
+        ),
+    ]
+
+    result = formatter.format(
+        Conditions(budget_max=200_000_000, deal_type=DealType.JEONSE),
+        apartments,
+    )
+
+    assert "송파구 전체 기준 학교 90곳" in result
+    assert "최근 거래 표본이 충분함" not in result

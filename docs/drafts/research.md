@@ -377,7 +377,7 @@ Makefile도 전체 스택 중심으로 정리되어 있다.
 
 README에는 "AI 서버는 mock backend 모드로 `/chat` 응답을 생성"한다고 되어 있지만, 현재 compose 기본값은 `AI_BACKEND_MODE=http`다.
 
-또한 README의 LLM 기본 모델 설명은 `Qwen/Qwen3.5-2B`를 언급하지만, compose 기본값은 `qwen/qwen-2.5-72b-instruct:free`다.
+LLM 기본값은 OpenRouter 무료 모델 `deepseek/deepseek-v4-flash:free`로 정리됐다.
 
 ### 9.3 기존 `research.md`
 

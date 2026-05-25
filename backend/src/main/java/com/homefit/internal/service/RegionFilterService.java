@@ -137,7 +137,11 @@ public class RegionFilterService {
                         s.commuteMinutes(),
                         s.apt().getDealCount() != null ? s.apt().getDealCount().intValue() : 0,
                         ageProfile(s.insight().demographic()),
-                        infrastructureSummary(s.insight().facility()),
+                        infrastructureSummary(
+                                s.insight().facility(),
+                                s.apt().getSigungu(),
+                                s.insight().facilityGuFallback()
+                        ),
                         recommendationReason(
                                 s.preferredMatch(),
                                 s.ageScore(),
@@ -341,9 +345,11 @@ public class RegionFilterService {
     ) {
         RegionKey exact = new RegionKey(apt.getSigungu(), apt.getDong());
         RegionKey guOnly = new RegionKey(apt.getSigungu(), null);
+        FacilityInsight exactFacility = facilities.get(exact);
         return new RegionInsight(
                 demographics.getOrDefault(exact, demographics.get(guOnly)),
-                facilities.getOrDefault(exact, facilities.get(guOnly))
+                exactFacility != null ? exactFacility : facilities.get(guOnly),
+                exactFacility == null && facilities.containsKey(guOnly)
         );
     }
 
@@ -430,12 +436,17 @@ public class RegionFilterService {
         );
     }
 
-    private static String infrastructureSummary(FacilityInsight facility) {
+    private static String infrastructureSummary(
+            FacilityInsight facility,
+            String sigungu,
+            boolean guFallback
+    ) {
         if (facility == null) {
             return null;
         }
 
-        return "인프라: 학교 %d, 의료 %d, 운동시설 %d, 유흥시설 %d, 교통 %d".formatted(
+        String label = guFallback ? "인프라(%s 전체): ".formatted(sigungu) : "인프라: ";
+        return label + "학교 %d, 의료 %d, 운동시설 %d, 유흥시설 %d, 교통 %d".formatted(
                 facility.schoolCount(),
                 facility.medicalCount(),
                 facility.fitnessCount(),
@@ -496,6 +507,7 @@ public class RegionFilterService {
 
     private record RegionInsight(
             DemographicInsight demographic,
-            FacilityInsight facility
+            FacilityInsight facility,
+            boolean facilityGuFallback
     ) {}
 }
