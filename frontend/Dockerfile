@@ -13,6 +13,10 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 FROM deps AS build
 WORKDIR /app
+ARG VITE_API_BASE_URL
+ARG VITE_USE_MOCK_CHAT=false
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_USE_MOCK_CHAT=$VITE_USE_MOCK_CHAT
 COPY . .
 RUN npm run build
 

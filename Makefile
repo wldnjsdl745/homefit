@@ -2,6 +2,7 @@ FRONTEND_DIR := frontend
 AI_DIR := ai-server
 NPM := npm --prefix $(FRONTEND_DIR)
 COMPOSE := docker compose
+PROD_COMPOSE := $(COMPOSE) -f docker-compose.prod.yml
 SEED_DATA ?= seed-data.sql
 SEED_DIR ?= db/seed
 SEED_ARCHIVE ?= $(SEED_DIR)/seed-data.sql.gz
@@ -87,6 +88,35 @@ restart: down up
 .PHONY: build
 build:
 	$(COMPOSE) build
+
+# ─────────────────────────────────────────────────────────
+#  운영 스택 (RDS 사용, Docker db/db-seed 제외)
+# ─────────────────────────────────────────────────────────
+
+.PHONY: prod-up
+prod-up:
+	$(PROD_COMPOSE) up -d
+	@echo ""
+	@echo "✓ Production stack starting. Tail logs with 'make prod-logs'."
+	@echo "  frontend:    http://localhost"
+	@echo "  ai-server:   internal only"
+	@echo "  backend:     internal only"
+
+.PHONY: prod-down
+prod-down:
+	$(PROD_COMPOSE) down
+
+.PHONY: prod-logs
+prod-logs:
+	$(PROD_COMPOSE) logs -f --tail=50
+
+.PHONY: prod-ps
+prod-ps:
+	$(PROD_COMPOSE) ps
+
+.PHONY: prod-build
+prod-build:
+	$(PROD_COMPOSE) build
 
 # ─────────────────────────────────────────────────────────
 #  Frontend (host)
