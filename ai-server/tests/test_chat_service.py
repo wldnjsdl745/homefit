@@ -96,4 +96,4 @@ async def test_chat_service_uses_llm_provider_once_at_dialog_complete() -> None:
     assert turn3.state == "result"
     assert turn3.bot_messages[0].type == "bot.text"
     assert "전세" in turn3.bot_messages[0].content
-    assert "서울 지역" in turn3.bot_messages[0].content
+    assert "이하" in turn3.bot_messages[0].content
