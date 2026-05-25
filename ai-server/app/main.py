@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.schemas import BotTextMessage, ChatRequest, ChatResponse, HealthResponse
+from app.schemas import BotTextMessage, ChatRequest, ChatResponse, ErrorResponse, HealthResponse
 from app.services.backend_client import HttpBackendClient, MockBackendClient
 from app.services.chat_service import ChatService
 from app.services.llm_provider import (
@@ -73,14 +73,20 @@ def create_app() -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         _request: Request,
-        _exc: RequestValidationError,
+        exc: RequestValidationError,
     ) -> JSONResponse:
+        error = ErrorResponse(
+            code="AI-REQ-001",
+            message="입력값을 이해하지 못했어요. 다시 알려주세요.",
+            detail=str(exc.errors()),
+        )
         response = ChatResponse(
             session_id="invalid",
             state="asking",
             bot_messages=[
-                BotTextMessage(type="bot.text", content="다시 알려주세요."),
+                BotTextMessage(type="bot.text", content=f"{error.message} ({error.code})"),
             ],
+            error=error,
         )
         return JSONResponse(status_code=200, content=response.model_dump(mode="json"))
 

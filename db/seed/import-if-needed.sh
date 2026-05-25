@@ -30,21 +30,27 @@ mysql_cmd() {
 
 attempt=1
 while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
-  if mysql_cmd -Nse "select count(*) from housing_transactions;" >/tmp/housing_transactions_count 2>/dev/null; then
+  if mysql_cmd -Nse "select 1;" >/dev/null 2>/dev/null; then
     break
   fi
 
-  echo "Waiting for backend migrations to create database schema... ($attempt/$MAX_ATTEMPTS)"
+  echo "Waiting for database connection... ($attempt/$MAX_ATTEMPTS)"
   attempt=$((attempt + 1))
   sleep 2
 done
 
 if [ "$attempt" -gt "$MAX_ATTEMPTS" ]; then
-  echo "Database schema was not ready. Check backend/Flyway logs."
+  echo "Database was not ready."
   exit 1
 fi
 
-transaction_count="$(cat /tmp/housing_transactions_count)"
+table_exists="$(mysql_cmd -Nse "select count(*) from information_schema.tables where table_schema = database() and table_name = 'housing_transactions';")"
+if [ "$table_exists" -gt 0 ]; then
+  transaction_count="$(mysql_cmd -Nse "select count(*) from housing_transactions;")"
+else
+  transaction_count=0
+fi
+
 if [ "$transaction_count" -gt 0 ] && [ "$force_import" != "true" ]; then
   echo "Seed import skipped. housing_transactions already has $transaction_count rows."
   exit 0
@@ -66,8 +72,10 @@ else
   exit 1
 fi
 
-echo "Preparing empty tables for seed import..."
-mysql_cmd -e "set foreign_key_checks=0; truncate table housing_transactions; truncate table regions; set foreign_key_checks=1;"
+if [ "$table_exists" -gt 0 ] && [ "$force_import" = "true" ]; then
+  echo "Preparing empty seed tables before import..."
+  mysql_cmd -e "set foreign_key_checks=0; truncate table housing_transactions; truncate table regions; set foreign_key_checks=1;"
+fi
 
 echo "Importing seed data from $seed_path..."
 case "$seed_path" in

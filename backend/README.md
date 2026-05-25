@@ -10,7 +10,6 @@ AI 서버가 호출하는 내부 API를 제공하고, 사용자 조건 저장과
 - **Spring Boot**: 3.5.14
 - **Build Tool**: Gradle
 - **Database**: MySQL
-- **Migration**: Flyway
 - **Container**: Docker
 
 ## Dependencies
@@ -20,7 +19,6 @@ AI 서버가 호출하는 내부 API를 제공하고, 사용자 조건 저장과
 - **Spring Security**: 인증/인가 및 보안 설정
 - **Spring Validation**: 요청 데이터 검증
 - **Spring Boot Actuator**: 헬스체크 및 애플리케이션 상태 확인
-- **Flyway**: DB 마이그레이션 버전 관리
 - **MySQL Driver**: MySQL DB 연결
 - **Lombok**: 반복 코드 간소화
 
@@ -47,7 +45,6 @@ Backend의 주요 책임:
 - 거래 조건 검증
 - MySQL 거래 데이터 조회
 - 조건에 맞는 지역 목록 반환
-- DB schema migration 실행
 
 ## 주요 API
 
@@ -84,32 +81,30 @@ Backend의 주요 책임:
 - `housing_transactions`: 주거 거래 데이터
 - `chat_messages`: 사용자 입력과 누적 조건 저장
 
-마이그레이션 파일 위치:
-
-```text
-src/main/resources/db/migration
-```
-
-현재 migration:
-
-- `V1__init.sql`
-- `V2__increase_chat_message_created_at_precision.sql`
-- `V3__add_sale_transactions.sql`
+스키마 생성은 Backend가 수행하지 않습니다.
+개발/운영 DB 모두 스키마와 초기 데이터를 포함한 dump SQL을 import해서 준비합니다.
 
 ## Environment Variables
 
 | 변수 | 설명 | 기본값 |
 |---|---|---|
-| `SPRING_DATASOURCE_URL` | MySQL JDBC URL | `jdbc:mysql://localhost:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8` |
-| `SPRING_DATASOURCE_USERNAME` | DB 사용자명 | `root` |
-| `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 | `${DB_PASSWORD}` 또는 빈 값 |
-| `DB_PASSWORD` | 로컬 DB 비밀번호 대체값 | 빈 값 |
+| `SPRING_DATASOURCE_URL` | MySQL JDBC URL | 개발 Docker Compose에서는 `jdbc:mysql://db:3306/homefit?...`, 운영에서는 RDS endpoint |
+| `SPRING_DATASOURCE_USERNAME` | DB 사용자명 | 개발 기본값 `homefit` |
+| `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 | 개발 기본값 `homefit` |
 
-Docker Compose에서는 기본적으로 아래 DB를 사용합니다.
+개발 Docker Compose에서는 기본적으로 아래 DB를 사용합니다.
 
 ```text
 jdbc:mysql://db:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
 ```
+
+운영 EC2에서는 RDS endpoint를 사용합니다.
+
+```text
+jdbc:mysql://your-rds-endpoint.ap-northeast-2.rds.amazonaws.com:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+```
+
+운영 RDS는 Backend 실행 전에 dump SQL import가 완료되어 있어야 합니다.
 
 ## Local Run
 
@@ -139,6 +134,10 @@ docker compose up frontend ai-server
 
 ## Docker
 
+Docker는 개발 환경에서 사용합니다.
+
+운영 EC2에서는 Docker 없이 Spring Boot jar를 systemd service로 실행합니다.
+
 백엔드 Dockerfile은 Java 21 기반 이미지로 빌드합니다.
 
 - Build stage: `eclipse-temurin:21-jdk-alpine`
@@ -148,6 +147,22 @@ docker compose up frontend ai-server
 
 ```text
 EXPOSE 8080
+```
+
+## Production Run
+
+운영 EC2에서는 Backend를 systemd service로 실행하고 RDS MySQL에 연결합니다.
+
+권장 JVM 메모리 제한:
+
+```text
+JAVA_TOOL_OPTIONS=-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m
+```
+
+예시 파일:
+
+```text
+deploy/systemd/backend.service.example
 ```
 
 ## Security

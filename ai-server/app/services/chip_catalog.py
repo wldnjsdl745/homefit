@@ -76,9 +76,16 @@ CHIP_DEAL_MONTHLY_RENT: ChipDefinition = ChipDefinition(
     raw=Conditions(deal_type=DealType.MONTHLY_RENT),
 )
 
+CHIP_DEAL_SALE: ChipDefinition = ChipDefinition(
+    chip_id="deal_sale",
+    label="매매",
+    raw=Conditions(deal_type=DealType.SALE),
+)
+
 DEAL_CHIPS: tuple[ChipDefinition, ...] = (
     CHIP_DEAL_JEONSE,
     CHIP_DEAL_MONTHLY_RENT,
+    CHIP_DEAL_SALE,
 )
 
 # ─── 액션 칩 (값 매핑 없음) ──────────────────────────────
@@ -106,13 +113,13 @@ ACTION_CHIPS: tuple[ChipDefinition, ...] = (
     CHIP_RETRY,
 )
 
-
 # ─── 통합 인덱스 ─────────────────────────────────────────
 
 CHIP_DEFINITIONS: dict[str, ChipDefinition] = {
     chip.chip_id: chip
     for chip in (*BUDGET_CHIPS, *DEAL_CHIPS, *ACTION_CHIPS)
 }
+
 
 
 def quick_replies(*chips: ChipDefinition) -> list[QuickReplyChip]:

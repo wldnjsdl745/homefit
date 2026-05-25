@@ -315,7 +315,7 @@ FE는 사용자가 입력한 월세 금액을 원 단위 숫자로 변환해 다
     {
       "type": "bot.quick_replies",
       "chips": [
-        { "id": "retry_budget", "label": "자본금 다시" },
+        { "id": "budget_restart", "label": "자본금 다시" },
         { "id": "restart", "label": "다시 추천" }
       ]
     }
@@ -332,14 +332,19 @@ BE 호출 실패 등 서버 내부 문제는 fallback 응답으로 흡수합니�
   "session_id": "f44dfd4a-3d58-4f69-9c93-6b669e7d5e9f",
   "state": "asking",
   "bot_messages": [
-    { "type": "bot.text", "content": "죄송해요, 다시 시도해주세요." },
+    { "type": "bot.text", "content": "Backend에 연결할 수 없어요. 잠시 후 다시 시도해주세요. (AI-BE-001)" },
     {
       "type": "bot.quick_replies",
       "chips": [
         { "id": "retry", "label": "재시도" }
       ]
     }
-  ]
+  ],
+  "error": {
+    "code": "AI-BE-001",
+    "message": "Backend에 연결할 수 없어요. 잠시 후 다시 시도해주세요.",
+    "detail": "/internal/upsert-conditions: connection failed"
+  }
 }
 ```
 
@@ -353,7 +358,7 @@ BE 호출 실패 등 서버 내부 문제는 fallback 응답으로 흡수합니�
 - `budget_max`, `deal_type`, 월세 선택 시 `monthly_rent_max`가 모두 있으면 BE를 호출해 추천 결과를 생성합니다.
 - 전세와 매매 condition의 `monthly_rent_max`는 `null`로 전달합니다.
 - 결과가 비어 있어도 `state="result"`를 사용합니다.
-- FE는 실패 분기를 별도로 두지 않고 `bot_messages`를 그대로 렌더합니다.
+- FE는 사용자 메시지는 `bot_messages` 기준으로 렌더하고, 디버깅/로깅에는 선택 필드인 `error`를 사용할 수 있습니다.
 
 ### 검증 규칙
 
@@ -542,21 +547,28 @@ http://backend:8080
 
 - FE는 AI 서버 응답을 그대로 렌더합니다.
 - AI 실패와 BE 실패는 AI 서버가 fallback 응답으로 흡수합니다.
-- 즉, FE는 `bot_messages` 기준으로만 동작합니다.
+- 즉, FE는 사용자 화면에서는 `bot_messages` 기준으로 동작합니다.
+- AI 서버가 원인을 분류할 수 있으면 응답에 `error.code`, `error.message`, `error.detail`을 포함합니다.
+- `error.detail`은 운영 화면에 그대로 노출하지 않고 로그/디버깅 용도로만 사용합니다.
 
 ## 7.2 에러 코드 가이드
 
-아래는 문서상 권장 가이드입니다.
+AI 서버는 FE에 가능한 한 `200 + fallback bot_messages`를 반환합니다.
 
-| error_code | HTTP | 설명 | FE 처리 |
-|---|---|---|---|
-| `INVALID_SESSION` | 400 | 유효하지 않은 세션 | 새 세션 시작 유도 |
-| `INVALID_RAW` | 400 | 입력 스키마 오류 | 재질문 또는 새로 시작 |
-| `NO_CANDIDATES` | 200 | 조건 일치 지역 없음 | 빈 결과 텍스트 렌더 |
-| `AI_UNAVAILABLE` | 200 | AI fallback 응답 | 분기 없이 렌더 |
-| `INTERNAL_ERROR` | 500 | 예기치 않은 장애 | 재시도 유도 |
+| code | HTTP | 위치 | 설명 | 사용자 메시지 |
+|---|---:|---|---|---|
+| `AI-REQ-001` | 200 | AI Server | `/chat` 입력 스키마 오류 | 입력값을 이해하지 못했어요. 다시 알려주세요. |
+| `AI-BE-001` | 200 | AI Server | Backend 연결 실패, timeout, 5xx | Backend에 연결할 수 없어요. 잠시 후 다시 시도해주세요. |
+| `AI-BE-002` | 200 | AI Server | Backend가 4xx로 요청 거부 | 요청 조건을 처리할 수 없어요. 입력값을 다시 확인해주세요. |
+| `AI-BE-003` | 200 | AI Server | Backend 응답 JSON/schema 해석 실패 | Backend 응답을 해석하지 못했어요. 잠시 후 다시 시도해주세요. |
+| `AI-BE-004` | 200 | AI Server | Backend retry loop 예외 | Backend 요청 처리 중 알 수 없는 문제가 발생했어요. |
+| `AI-SYS-001` | 200 | AI Server | 테스트용 실패 모드 | AI 서버가 테스트 실패 모드로 실행 중이에요. |
+| `AI-SYS-002` | 200 | AI Server | AI 처리 중 알 수 없는 예외 | AI 처리 중 문제가 발생했어요. 잠시 후 다시 시도해주세요. |
+| `BE-REQ-001` | 400 | Backend | 내부 API 조건값 검증 실패 | Invalid internal API request. |
+| `BE-REQ-002` | 400 | Backend | 내부 API request body 파싱/스키마 오류 | Invalid request body. |
+| `BE-SYS-001` | 500 | Backend | Backend 처리 중 예기치 않은 예외 | Internal backend error. |
 
-실제 MVP v0에서는 가능한 한 AI 서버가 `200 + fallback bot_messages`로 흡수하는 방향을 우선합니다.
+빈 추천 결과는 장애가 아니므로 별도 에러 코드 없이 `state="result"`와 빈 결과 안내 메시지로 반환합니다.
 
 ---
 

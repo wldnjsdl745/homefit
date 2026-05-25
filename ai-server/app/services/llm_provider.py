@@ -42,11 +42,13 @@ _SYSTEM_PROMPT_KO = (
     "\n"
     "출력 JSON 키:\n"
     "  - budget_max: 정수, 단위는 원(KRW)\n"
-    "  - deal_type: 'jeonse'(전세) 또는 'monthly_rent'(월세)\n"
+    "  - deal_type: 'jeonse'(전세), 'monthly_rent'(월세), 'sale'(매매) 중 하나\n"
+    "  - monthly_rent_max: 정수, 단위는 원(KRW). deal_type=monthly_rent 일 때만 포함.\n"
     "\n"
     "한국어 금액 단위 변환 (반드시 정확히 따를 것):\n"
     "  - 1만원 = 10000\n"
-    "  - 10만원 = 100000\n"
+    "  - 50만원 = 500000\n"
+    "  - 80만원 = 800000\n"
     "  - 100만원 = 1000000\n"
     "  - 1천만원 = 10000000\n"
     "  - 5천만원 = 50000000\n"
@@ -60,15 +62,17 @@ _SYSTEM_PROMPT_KO = (
     "규칙:\n"
     "1. 사용자가 명시한 키만 JSON에 포함. 명시 안 된 키는 절대 추가하지 말 것 (null도 안 됨).\n"
     "2. '한 2억', '2억 정도', '약 2억' 등 모호한 표현도 위 변환표의 정수 그대로 사용.\n"
-    "3. preference_text는 절대 추출하지 말 것 (클라이언트가 별도 전달).\n"
+    "3. preference_text는 절대 추출하지 말 것.\n"
     "4. 다른 텍스트 없이 JSON 객체만 반환. markdown 코드 블록(```)으로 감싸지 말 것.\n"
     "\n"
     '예시:\n'
-    '  입력: "2억 정도 있어요"        → {"budget_max": 200000000}\n'
-    '  입력: "5천만원"                 → {"budget_max": 50000000}\n'
-    '  입력: "전세로 보고 있어"        → {"deal_type": "jeonse"}\n'
-    '  입력: "1.5억 전세"              → {"budget_max": 150000000, "deal_type": "jeonse"}\n'
-    '  입력: "강남 근처면 좋겠어요"   → {}'
+    '  입력: "2억 정도 있어요"              → {"budget_max": 200000000}\n'
+    '  입력: "전세로 보고 있어"             → {"deal_type": "jeonse"}\n'
+    '  입력: "월세 80만원"                  → '
+    '{"deal_type": "monthly_rent", "monthly_rent_max": 800000}\n'
+    '  입력: "매매로 볼게요"                → {"deal_type": "sale"}\n'
+    '  입력: "1.5억 전세"                   → {"budget_max": 150000000, "deal_type": "jeonse"}\n'
+    '  입력: "강남 근처면 좋겠어요"        → {}'
 )
 
 

@@ -10,4 +10,4 @@ def test_result_formatter_formats_korean_result_text() -> None:
         ["분당", "성남", "경기도"],
     )
 
-    assert result == "전세 2억 예산에 맞는 지역은 분당·성남·경기도입니다."
+    assert result == "전세 2억 예산에 맞는 서울 지역은 분당·성남·경기도입니다."

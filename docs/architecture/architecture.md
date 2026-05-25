@@ -43,8 +43,8 @@ Frontend -> AI Server -> Backend -> MySQL
 |---|---|
 | Frontend | 채팅 UI, 사용자 입력 수집, `bot_messages` 렌더링 |
 | AI Server | 공개 API, 대화 흐름 제어, Backend 호출, LLM 연동, fallback 처리 |
-| Backend | 내부 API, 조건 저장, 거래 데이터 필터링, DB migration |
-| MySQL | 지역/거래 데이터와 세션 조건 저장 |
+| Backend | 내부 API, 조건 저장, 거래 데이터 필터링, RDS 연결 |
+| MySQL | 지역/거래 데이터와 세션 조건 저장. 개발은 Docker MySQL, 운영은 Amazon RDS MySQL |
 
 핵심 원칙:
 
@@ -59,6 +59,8 @@ Frontend -> AI Server -> Backend -> MySQL
 ## 2. 로컬 개발 구성
 
 현재 로컬 개발 환경은 Docker Compose 중심입니다.
+
+개발 DB는 Docker MySQL을 사용하고, 운영/배포 DB는 Amazon RDS MySQL을 사용합니다.
 
 ```text
 localhost:5173
@@ -168,7 +170,6 @@ Backend는 내부 API와 DB 접근을 담당합니다.
 - Spring Security
 - Spring Validation
 - Spring Boot Actuator
-- Flyway
 - MySQL Driver
 - Lombok
 
@@ -192,6 +193,13 @@ Backend는 내부 API와 DB 접근을 담당합니다.
 
 MySQL은 세션 조건과 거래 원천 데이터를 저장합니다.
 
+환경별 DB:
+
+| 환경 | DB |
+|---|---|
+| 개발 | Docker MySQL |
+| 운영/배포 | Amazon RDS MySQL |
+
 핵심 테이블:
 
 | 테이블 | 역할 |
@@ -200,7 +208,7 @@ MySQL은 세션 조건과 거래 원천 데이터를 저장합니다.
 | `housing_transactions` | 전세/월세/매매 거래 데이터 |
 | `chat_messages` | 사용자 입력과 누적 조건 |
 
-Schema 변경은 Flyway migration으로 관리합니다.
+Schema와 초기 데이터는 dump SQL import로 관리합니다. Backend는 실행 시 schema 변경 작업을 수행하지 않습니다.
 
 ---
 
@@ -362,9 +370,8 @@ Internet
 EC2 1대
   - nginx 또는 reverse proxy
   - frontend static files
-  - ai-server
-  - backend
-  - CloudWatch agent
+  - ai-server systemd service
+  - backend systemd service
   |
   v
 RDS MySQL 1대
@@ -373,7 +380,10 @@ RDS MySQL 1대
 로그:
 
 ```text
-EC2 / app logs -> CloudWatch Logs
+EC2 local logs
+  - /var/log/homefit/*.log
+  - /var/log/nginx/*.log
+  - journalctl
 ```
 
 ## 7.2 EC2 추천값
@@ -386,15 +396,24 @@ EC2 / app logs -> CloudWatch Logs
 | Storage | 20~30GB |
 | Public IP | 1개만 사용 |
 | Elastic IP | 초기에는 사용하지 않음 |
-| 실행 방식 | Docker Compose |
-| Java memory | `-Xms128m -Xmx384m~512m` |
+| 실행 방식 | `systemd` |
+| Backend memory | `JAVA_TOOL_OPTIONS=-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m` |
+| AI Server memory | systemd `MemoryMax=256M~384M` |
 
 운영 EC2에서는 Vite dev server를 실행하지 않습니다.
 
 - Frontend는 build 결과물을 nginx로 정적 서빙합니다.
-- AI Server와 Backend는 같은 Docker Compose 안에서 실행합니다.
+- AI Server와 Backend는 같은 EC2 안에서 각각 systemd service로 실행합니다.
+- Backend는 Amazon RDS MySQL에 연결합니다.
 - Ollama 같은 로컬 LLM runtime은 실행하지 않습니다.
 - LLM은 외부 API를 호출합니다.
+
+운영 EC2에는 Docker, Docker Compose, MySQL server, Ollama, CloudWatch Agent를 올리지 않습니다.
+
+운영 service 예시:
+
+- [backend.service.example](../../deploy/systemd/backend.service.example)
+- [ai-server.service.example](../../deploy/systemd/ai-server.service.example)
 
 ## 7.3 RDS MySQL 추천값
 
@@ -416,22 +435,32 @@ EC2 / app logs -> CloudWatch Logs
 
 운영 데이터가 실제로 쌓이면 backup retention과 deletion protection을 다시 검토합니다.
 
-## 7.4 CloudWatch Logs
+## 7.4 로그 관리
 
-초기에는 최소 로그만 수집합니다.
+초기에는 CloudWatch Logs를 사용하지 않고 EC2 로컬 로그만 사용합니다.
 
-수집 대상:
+로그 대상:
 
 - reverse proxy access/error logs
 - AI Server logs
 - Backend logs
-- Docker 또는 systemd logs
+- systemd service stdout/stderr log files
 
 권장:
 
-- retention 7일 또는 최소 기간 설정
 - 기본 log level은 `INFO`
-- 장기 retention, Container Insights, custom metrics는 초기 제외
+- `/var/log/homefit/`와 `/var/log/nginx/`를 확인합니다.
+- 로그 파일이 커지지 않도록 logrotate 설정을 둡니다.
+
+확인 명령:
+
+```sh
+journalctl -u backend -f
+journalctl -u ai-server -f
+tail -f /var/log/homefit/backend.log
+tail -f /var/log/homefit/ai-server.log
+tail -f /var/log/nginx/error.log
+```
 
 ## 7.5 초기 제외 항목
 
@@ -445,6 +474,9 @@ EC2 / app logs -> CloudWatch Logs
 - Enhanced Monitoring
 - Container Insights
 - CloudWatch RUM/Synthetics
+- CloudWatch Agent
+- EC2 내부 Docker runtime
+- EC2 내부 MySQL server
 
 주의:
 
@@ -500,13 +532,14 @@ Ollama는 로컬 개발 또는 실험용입니다.
 3. RDS public access가 꺼져 있는가
 4. RDS inbound 3306이 EC2 security group에서만 허용되는가
 5. Backend가 RDS에 연결되는가
-6. Flyway migration이 성공했는가
+6. RDS schema와 dump 데이터 import가 완료되었는가
 7. /healthz, /actuator/health가 정상인가
 8. Frontend -> AI Server -> Backend -> RDS 흐름이 성공하는가
-9. CloudWatch Logs에 app log가 들어오는가
+9. /var/log/homefit/와 /var/log/nginx/에 로그가 남는가
 10. OPENAI_API_KEY, DB password가 Git에 포함되지 않았는가
 11. RDS Multi-AZ, Read Replica, Enhanced Monitoring, Performance Insights가 꺼져 있는가
-12. CloudWatch Logs retention이 설정되어 있는가
+12. logrotate 또는 로그 파일 관리 기준이 있는가
 13. Billing alert가 설정되어 있는가
 14. Backend JVM memory limit과 swap 설정이 적용되어 있는가
+15. EC2에 Docker/MySQL/Ollama가 설치 또는 실행되고 있지 않은가
 ```

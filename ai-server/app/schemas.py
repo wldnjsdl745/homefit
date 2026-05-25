@@ -6,6 +6,8 @@ FastAPI가 이 정보를 OpenAPI 문서로 자동 노출하므로 별도 카탈�
 참고: 칩(chip_id) → conditions 매핑은 `app.services.chip_catalog` 참고.
 """
 
+from __future__ import annotations
+
 from enum import StrEnum
 from typing import Annotated, Literal
 
@@ -13,10 +15,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class DealType(StrEnum):
-    """거래 유형. v0은 jeonse / monthly_rent. 매매(sale)는 v3+에서 추가 예정."""
+    """거래 유형. jeonse / monthly_rent / sale."""
 
     JEONSE = "jeonse"
     MONTHLY_RENT = "monthly_rent"
+    SALE = "sale"
 
 
 class Conditions(BaseModel):
@@ -50,11 +53,24 @@ class Conditions(BaseModel):
         Field(
             default=None,
             description=(
-                "거래 유형. v0은 jeonse / monthly_rent. "
-                "추출 방법: LLM(자연어 '전세'/'월세') / 칩(`deal_jeonse` / `deal_monthly_rent`). "
-                "단계: v0."
+                "거래 유형. jeonse / monthly_rent / sale. "
+                "추출 방법: LLM(자연어) / 칩(`deal_jeonse` / `deal_monthly_rent` / `deal_sale`). "
             ),
-            examples=["jeonse", "monthly_rent"],
+            examples=["jeonse", "monthly_rent", "sale"],
+        ),
+    ] = None
+
+    monthly_rent_max: Annotated[
+        int | None,
+        Field(
+            default=None,
+            gt=0,
+            le=100_000_000,
+            description=(
+                "월세 상한 (원 단위 정수). deal_type=monthly_rent 일 때만 사용. "
+                "전세/매매는 null. 예: '80만원' → 800000."
+            ),
+            examples=[500_000, 800_000, 1_000_000],
         ),
     ] = None
 
@@ -65,7 +81,6 @@ class Conditions(BaseModel):
             description=(
                 "사용자 추가 희망 사항 자유 텍스트. "
                 "추출 방법: **FE가 raw에 직접 넣어 전송** (LLM은 정책상 추출 거부). "
-                "단계: v0. 예: '강남 근처면 좋겠어요'."
             ),
             examples=["강남 근처면 좋겠어요", "역세권 선호", ""],
         ),
@@ -116,6 +131,14 @@ class BotQuickRepliesMessage(BaseModel):
 BotMessage = BotTextMessage | BotQuickRepliesMessage
 
 
+class ErrorResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+    detail: str
+
+
 class ChatResponse(BaseModel):
     """AI 서버 → FE 응답.
 
@@ -125,6 +148,7 @@ class ChatResponse(BaseModel):
     session_id: str
     state: Literal["asking", "result"]
     bot_messages: list[BotMessage]
+    error: ErrorResponse | None = None
 
 
 # ─── 내부 API (AI 서버 → BE) ──────────────────────────────
@@ -156,14 +180,8 @@ class FilterRegionsResponse(BaseModel):
     )
 
 
-# ─── 헬스체크 / 에러 ──────────────────────────────────────
+# ─── 헬스체크 ─────────────────────────────────────────────
 
 
 class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
-
-
-class ErrorResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    detail: str

@@ -89,7 +89,7 @@ git checkout -- <file>
 예시:
 
 - API 명세 수정
-- Backend migration 수정
+- Backend DB 연동 수정
 - seed 자동화 수정
 - 문서 추가
 
@@ -186,6 +186,13 @@ ai-server/.env.example
 
 ## 5. DB Seed 관리 규칙
 
+DB 사용 전략:
+
+```text
+개발: Docker MySQL
+운영/배포: Amazon RDS MySQL
+```
+
 ## 5.1 seed 파일 위치
 
 Docker DB 자동 import용 seed 파일은 아래 위치에 둡니다.
@@ -213,12 +220,6 @@ seed dump 파일은 용량이 크고 데이터가 자주 바뀔 수 있으므로
 *.sql.gz
 ```
 
-단, Flyway migration SQL은 예외로 Git에 포함합니다.
-
-```text
-!backend/src/main/resources/db/migration/*.sql
-```
-
 ## 5.3 로컬 MySQL -> Docker DB 동기화
 
 로컬 MySQL 데이터를 Docker DB에 다시 반영할 때는 아래 명령을 사용합니다.
@@ -229,10 +230,9 @@ make docker-db-refresh-from-local
 
 이 명령의 역할:
 
-1. 로컬 MySQL의 `regions`, `housing_transactions` 데이터를 dump
+1. 로컬 MySQL의 schema와 데이터를 dump
 2. `db/seed/seed-data.sql.gz` 생성
-3. Docker backend를 빌드/실행해서 Flyway migration 적용
-4. Docker DB의 seed 대상 테이블을 비우고 새 데이터 import
+3. Docker DB의 seed 대상 테이블을 비우고 새 데이터 import
 
 주의:
 
@@ -241,10 +241,17 @@ make docker-db-refresh-from-local
 
 ## 5.4 seed import 확인
 
-seed 데이터가 들어갔는지 확인할 때는 아래 쿼리를 사용합니다.
+개발 Docker DB에 seed 데이터가 들어갔는지 확인할 때는 아래 쿼리를 사용합니다.
 
 ```sh
 docker compose exec db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "select count(*) as regions from regions; select count(*) as housing_transactions from housing_transactions;"'
+```
+
+운영 RDS에 seed 데이터를 import하거나 확인할 때는 아래 명령을 사용합니다.
+
+```sh
+make rds-import-seed RDS_HOST=<rds-endpoint> RDS_PASSWORD=<password>
+make rds-count RDS_HOST=<rds-endpoint> RDS_PASSWORD=<password>
 ```
 
 ---
@@ -257,14 +264,14 @@ Backend 기준:
 - Spring Boot 3.5.14
 - Gradle
 - MySQL
-- Flyway
 
 주요 책임:
 
 - 내부 API 제공
 - conditions 저장
 - 거래 데이터 필터링
-- DB migration
+
+DB schema는 dump SQL import로 준비하며 Backend는 schema 변경 작업을 수행하지 않습니다.
 
 Backend는 Frontend가 직접 호출하지 않습니다.
 
@@ -407,7 +414,7 @@ cd backend
 초기 운영 배포는 비용을 줄이기 위해 아래 구성을 우선합니다.
 
 ```text
-EC2 1대 + RDS MySQL 1대 + CloudWatch Logs 최소 사용
+EC2 1대 + RDS MySQL 1대
 ```
 
 초기에는 사용하지 않습니다.
@@ -420,6 +427,10 @@ EC2 1대 + RDS MySQL 1대 + CloudWatch Logs 최소 사용
 - Enhanced Monitoring
 - Container Insights
 
-EC2에는 Backend와 AI Server를 같은 Docker Compose 안에서 실행합니다.
+EC2에는 Docker를 올리지 않습니다.
+
+Backend와 AI Server는 같은 EC2 안에서 각각 systemd service로 실행합니다.
 
 LLM은 EC2에서 직접 실행하지 않고 외부 LLM API를 호출합니다.
+
+로그는 EC2 로컬 로그(`/var/log/homefit/`, `/var/log/nginx/`, `journalctl`)로 확인합니다.

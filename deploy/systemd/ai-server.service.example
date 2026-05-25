@@ -1,0 +1,35 @@
+[Unit]
+Description=Homefit AI Server
+After=network-online.target backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=homefit
+Group=homefit
+WorkingDirectory=/opt/homefit/ai-server
+LogsDirectory=homefit
+
+Environment="BACKEND_URL=http://127.0.0.1:8080"
+Environment="AI_BACKEND_MODE=http"
+Environment="AI_PROVIDER=openai_compatible"
+Environment="AI_DUMMY_FAIL=false"
+Environment="AI_TIMEOUT_MS=5000"
+Environment="OPENAI_BASE_URL=https://openrouter.ai/api/v1"
+Environment="OPENAI_API_KEY=change-me"
+Environment="OPENAI_MODEL=qwen/qwen-2.5-72b-instruct:free"
+Environment="LLM_TIMEOUT_MS=30000"
+Environment="LLM_PROMPT_STYLE=hermes"
+Environment="CORS_ALLOW_ORIGINS=https://your-domain.example"
+Environment="PYTHONPATH=/opt/homefit/ai-server"
+
+ExecStart=/opt/homefit/ai-server/.venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+MemoryMax=384M
+
+StandardOutput=append:/var/log/homefit/ai-server.log
+StandardError=append:/var/log/homefit/ai-server-error.log
+
+[Install]
+WantedBy=multi-user.target

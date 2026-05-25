@@ -1,17 +1,18 @@
 """ChatService — 단일 LLM 호출 모델.
 
-핵심 정책 (사용자 요구):
-  - LLM은 **dialog 완료 시점에 단 1회만** 호출한다.
-  - 턴별 LLM 호출 없음 (느리고 낭비). 칩으로 답한 turn은 BE에 raw 저장만.
-  - 사용자가 텍스트로 답한 경우 raw_message를 누적 → 완료 시점에 한 번 합쳐서 추출.
+핵심 정책:
+  - LLM은 dialog 완료 시점에 단 1회만 호출한다.
+  - 칩 턴은 BE raw 저장만. 텍스트 입력은 누적 → 완료 시 LLM 1회 추출.
 
-Dialog 흐름 (preference 단계 제거됨):
+Dialog 흐름:
   step 0 (첫 호출):     자본금 질문
-  step 1 (답변 1번):    거래 유형 질문
-  step 2 (답변 2번):    완료 → 누적 raw_message가 있으면 LLM 1회 호출 → BE 필터 → 결과
+  step 1 (답변 1번):    거래 유형 질문 (전세/월세/매매 칩)
+  step 2 (답변 2번):
+    - deal_type=monthly_rent & monthly_rent_max 없음 → 월세 예산 질문
+    - 그 외 (전세/매매) → 완료
+  step 3 (답변 3번):    완료 (월세 예산 받은 후)
 
-세션 상태는 ai-server 메모리에 유지(`_session_state`). 데모 단계엔 충분하고,
-BE 영속화는 추후 BE에서 turn_count/messages 노출 시 옮길 수 있다.
+완료 = 누적 raw_message가 있으면 LLM 1회 → BE 필터 → 결과.
 """
 
 from __future__ import annotations
@@ -19,8 +20,8 @@ from __future__ import annotations
 import httpx
 
 from app.config import Settings
-from app.schemas import ChatRequest, ChatResponse, Conditions
-from app.services.backend_client import BackendClient
+from app.schemas import ChatRequest, ChatResponse, Conditions, DealType, ErrorResponse
+from app.services.backend_client import BackendClient, BackendClientError
 from app.services.llm_provider import DummyLlmProvider, LlmProvider
 from app.services.merge_service import MergeService
 from app.services.message_builder import MessageBuilder
@@ -53,7 +54,14 @@ class ChatService:
 
     async def handle(self, request: ChatRequest) -> ChatResponse:
         if self.settings.dummy_fail:
-            return self._fallback(request.session_id)
+            return self._fallback(
+                request.session_id,
+                ErrorResponse(
+                    code="AI-SYS-001",
+                    message="AI 서버가 테스트 실패 모드로 실행 중이에요.",
+                    detail="AI_DUMMY_FAIL is enabled.",
+                ),
+            )
 
         try:
             # 1) BE에 세션 등록 + 칩에서 받은 raw 저장 (LLM 호출 X)
@@ -93,8 +101,23 @@ class ChatService:
                     bot_messages=self.message_builder.ask_deal_type(),
                 )
 
-            # step >= 2: dialog 완료. 누적 텍스트 있으면 LLM 1회 호출.
             conditions = upserted.conditions
+
+            needs_monthly_rent = (
+                step == 2
+                and conditions.deal_type == DealType.MONTHLY_RENT
+                and conditions.monthly_rent_max is None
+            )
+            if needs_monthly_rent:
+                # 월세 선택 → 월세 예산 추가 질문
+                return ChatResponse(
+                    session_id=sid,
+                    state="asking",
+                    bot_messages=self.message_builder.ask_monthly_rent(),
+                )
+
+            # step >= 2 (전세/매매) 또는 step >= 3 (월세): dialog 완료.
+            # 누적 텍스트 있으면 LLM 1회 호출.
             if self._needs_extraction(conditions) and state.messages:
                 combined = " / ".join(state.messages)
                 extracted = await self.llm_provider.extract_conditions(combined)
@@ -115,22 +138,36 @@ class ChatService:
                 bot_messages=self.message_builder.result(conditions, regions.regions),
             )
 
-        except (httpx.HTTPError, ValueError):
-            return self._fallback(request.session_id)
+        except BackendClientError as exception:
+            return self._fallback(request.session_id, exception.error)
+        except (httpx.HTTPError, ValueError) as exception:
+            return self._fallback(
+                request.session_id,
+                ErrorResponse(
+                    code="AI-SYS-002",
+                    message="AI 처리 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.",
+                    detail=str(exception),
+                ),
+            )
 
-    def _fallback(self, session_id: str | None) -> ChatResponse:
+    def _fallback(self, session_id: str | None, error: ErrorResponse | None = None) -> ChatResponse:
         return ChatResponse(
             session_id=session_id or "fallback",
             state="asking",
-            bot_messages=self.message_builder.fallback(),
+            bot_messages=self.message_builder.fallback(error),
+            error=error,
         )
 
     @staticmethod
     def _has_chip_response(raw: Conditions) -> bool:
-        """raw에 의미 있는 값(budget_max 또는 deal_type)이 있으면 True."""
+        """raw에 의미 있는 값이 있으면 True."""
         return bool(raw.model_dump(exclude_none=True, exclude={"preference_text"}))
 
     @staticmethod
     def _needs_extraction(conditions: Conditions) -> bool:
-        """budget_max 또는 deal_type 중 하나라도 비어있으면 LLM 추출 필요."""
-        return conditions.budget_max is None or conditions.deal_type is None
+        """LLM 추출이 필요한 경우: 필수 키 누락."""
+        if conditions.budget_max is None or conditions.deal_type is None:
+            return True
+        if conditions.deal_type == DealType.MONTHLY_RENT and conditions.monthly_rent_max is None:
+            return True
+        return False
