@@ -225,9 +225,7 @@ class ChatService:
             return ChatResponse(
                 session_id=sid,
                 state="result",
-                bot_messages=self.message_builder.result(
-                    conditions, regions.regions, regions.region_details
-                ),
+                bot_messages=self.message_builder.result(conditions, regions.apartments),
             )
 
         except BackendClientError as exc:

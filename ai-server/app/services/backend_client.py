@@ -4,6 +4,7 @@ from uuid import uuid4
 import httpx
 
 from app.schemas import (
+    ApartmentDetail,
     Conditions,
     ErrorResponse,
     FilterRegionsRequest,
@@ -117,29 +118,31 @@ class MockBackendClient(BackendClient):
 
     async def filter_regions(self, conditions: Conditions) -> FilterRegionsResponse:
         if conditions.budget_max is not None and conditions.budget_max < 60_000_000:
-            return FilterRegionsResponse(regions=[], region_details=[])
+            return FilterRegionsResponse(regions=[], region_details=[], apartments=[])
 
         dest = conditions.commute_destination
+        commute_minutes = 20 if dest else None
 
         if conditions.deal_type == "jeonse":
-            regions = ["마포구", "성동구", "광진구"]
-            details = [
-                RegionDetail(name="마포구", commute_minutes=25 if dest else None, safety_grade="A"),
-                RegionDetail(name="성동구", commute_minutes=15 if dest else None, safety_grade="A"),
-                RegionDetail(name="광진구", commute_minutes=30 if dest else None, safety_grade="B"),
+            apts = [
+                ApartmentDetail(sigungu="마포구", dong="합정동", name="마포 한강 자이", avg_price_manwon=50_000, avg_area_sqm=59.0, built_year=2018, commute_minutes=commute_minutes),
+                ApartmentDetail(sigungu="성동구", dong="성수동", name="서울숲 리버뷰", avg_price_manwon=55_000, avg_area_sqm=84.0, built_year=2021, commute_minutes=commute_minutes),
+                ApartmentDetail(sigungu="광진구", dong="구의동", name="광진 e편한세상", avg_price_manwon=45_000, avg_area_sqm=59.0, built_year=2016, commute_minutes=commute_minutes),
             ]
-            return FilterRegionsResponse(regions=regions, region_details=details)
+        elif conditions.deal_type == "monthly_rent":
+            apts = [
+                ApartmentDetail(sigungu="관악구", dong="신림동", name="관악 두산위브", avg_price_manwon=5_000, avg_area_sqm=45.0, built_year=2010, commute_minutes=commute_minutes),
+                ApartmentDetail(sigungu="동작구", dong="사당동", name="사당 래미안", avg_price_manwon=6_000, avg_area_sqm=59.0, built_year=2014, commute_minutes=commute_minutes),
+            ]
+        elif conditions.deal_type == "sale":
+            apts = [
+                ApartmentDetail(sigungu="노원구", dong="상계동", name="상계주공9단지", avg_price_manwon=45_000, avg_area_sqm=59.0, built_year=1991, commute_minutes=commute_minutes),
+                ApartmentDetail(sigungu="도봉구", dong="창동", name="창동 주공19단지", avg_price_manwon=40_000, avg_area_sqm=49.0, built_year=1993, commute_minutes=commute_minutes),
+            ]
+        else:
+            apts = [
+                ApartmentDetail(sigungu="마포구", dong="공덕동", name="공덕 SK리더스뷰", avg_price_manwon=52_000, avg_area_sqm=59.0, built_year=2015, commute_minutes=commute_minutes),
+            ]
 
-        if conditions.deal_type == "monthly_rent":
-            regions = ["관악구", "동작구", "영등포구"]
-            details = [RegionDetail(name=r) for r in regions]
-            return FilterRegionsResponse(regions=regions, region_details=details)
-
-        if conditions.deal_type == "sale":
-            regions = ["노원구", "도봉구", "강북구"]
-            details = [RegionDetail(name=r) for r in regions]
-            return FilterRegionsResponse(regions=regions, region_details=details)
-
-        regions = ["마포구", "은평구", "서대문구"]
-        details = [RegionDetail(name=r) for r in regions]
-        return FilterRegionsResponse(regions=regions, region_details=details)
+        regions = list({a.sigungu for a in apts})
+        return FilterRegionsResponse(regions=regions, region_details=[], apartments=apts)

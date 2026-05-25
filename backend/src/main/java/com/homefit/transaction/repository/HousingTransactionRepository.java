@@ -5,48 +5,95 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface HousingTransactionRepository extends JpaRepository<HousingTransaction, Long> {
 
-    // 전세 — deposit_amount 기준 필터
-    @Query("""
-            SELECT ht.region.sigungu AS sigungu, COUNT(ht.id) AS count
-            FROM HousingTransaction ht
-            WHERE ht.dealType = 'jeonse'
-              AND ht.region.sido = '서울특별시'
-              AND ht.depositAmount IS NOT NULL
-              AND ht.depositAmount <= :budgetMax
-            GROUP BY ht.region.sigungu
+    @Query(nativeQuery = true, value = """
+            SELECT r.sigungu                         AS sigungu,
+                   r.legal_dong_name                 AS dong,
+                   ht.building_name                  AS buildingName,
+                   COUNT(*)                          AS dealCount,
+                   ROUND(AVG(ht.sale_price_amount))  AS avgPrice,
+                   MIN(ht.sale_price_amount)          AS minPrice,
+                   MAX(ht.sale_price_amount)          AS maxPrice,
+                   ROUND(AVG(ht.rental_area), 1)     AS avgArea,
+                   MAX(ht.built_year)                AS builtYear
+            FROM housing_transactions ht
+            JOIN regions r ON ht.region_id = r.id
+            WHERE ht.deal_type = 'sale'
+              AND r.sido = '서울특별시'
+              AND ht.sale_price_amount IS NOT NULL
+              AND ht.sale_price_amount <= :budgetMax
+              AND ht.contract_date >= :since
+              AND ht.building_name IS NOT NULL
+              AND ht.building_name != ''
+            GROUP BY r.sigungu, r.legal_dong_name, ht.building_name
+            ORDER BY COUNT(*) DESC
+            LIMIT 60
             """)
-    List<RegionCount> findJeonseRegions(@Param("budgetMax") Long budgetMaxInManwon);
-
-    // 월세 — 보증금 + 월세 동시 필터
-    @Query("""
-            SELECT ht.region.sigungu AS sigungu, COUNT(ht.id) AS count
-            FROM HousingTransaction ht
-            WHERE ht.dealType = 'monthly_rent'
-              AND ht.region.sido = '서울특별시'
-              AND ht.depositAmount IS NOT NULL
-              AND ht.depositAmount <= :budgetMax
-              AND ht.monthlyRent IS NOT NULL
-              AND ht.monthlyRent <= :monthlyRentMax
-            GROUP BY ht.region.sigungu
-            """)
-    List<RegionCount> findMonthlyRentRegions(
+    List<ApartmentResult> findSaleApartments(
             @Param("budgetMax") Long budgetMaxInManwon,
-            @Param("monthlyRentMax") Long monthlyRentMaxInManwon
+            @Param("since") LocalDate since
     );
 
-    // 매매 — sale_price_amount 기준 필터
-    @Query("""
-            SELECT ht.region.sigungu AS sigungu, COUNT(ht.id) AS count
-            FROM HousingTransaction ht
-            WHERE ht.dealType = 'sale'
-              AND ht.region.sido = '서울특별시'
-              AND ht.salePriceAmount IS NOT NULL
-              AND ht.salePriceAmount <= :budgetMax
-            GROUP BY ht.region.sigungu
+    @Query(nativeQuery = true, value = """
+            SELECT r.sigungu                        AS sigungu,
+                   r.legal_dong_name                AS dong,
+                   ht.building_name                 AS buildingName,
+                   COUNT(*)                         AS dealCount,
+                   ROUND(AVG(ht.deposit_amount))    AS avgPrice,
+                   MIN(ht.deposit_amount)           AS minPrice,
+                   MAX(ht.deposit_amount)           AS maxPrice,
+                   ROUND(AVG(ht.rental_area), 1)    AS avgArea,
+                   MAX(ht.built_year)               AS builtYear
+            FROM housing_transactions ht
+            JOIN regions r ON ht.region_id = r.id
+            WHERE ht.deal_type = 'jeonse'
+              AND r.sido = '서울특별시'
+              AND ht.deposit_amount IS NOT NULL
+              AND ht.deposit_amount <= :budgetMax
+              AND ht.contract_date >= :since
+              AND ht.building_name IS NOT NULL
+              AND ht.building_name != ''
+            GROUP BY r.sigungu, r.legal_dong_name, ht.building_name
+            ORDER BY COUNT(*) DESC
+            LIMIT 60
             """)
-    List<RegionCount> findSaleRegions(@Param("budgetMax") Long budgetMaxInManwon);
+    List<ApartmentResult> findJeonseApartments(
+            @Param("budgetMax") Long budgetMaxInManwon,
+            @Param("since") LocalDate since
+    );
+
+    @Query(nativeQuery = true, value = """
+            SELECT r.sigungu                        AS sigungu,
+                   r.legal_dong_name                AS dong,
+                   ht.building_name                 AS buildingName,
+                   COUNT(*)                         AS dealCount,
+                   ROUND(AVG(ht.deposit_amount))    AS avgPrice,
+                   MIN(ht.deposit_amount)           AS minPrice,
+                   MAX(ht.deposit_amount)           AS maxPrice,
+                   ROUND(AVG(ht.rental_area), 1)    AS avgArea,
+                   MAX(ht.built_year)               AS builtYear
+            FROM housing_transactions ht
+            JOIN regions r ON ht.region_id = r.id
+            WHERE ht.deal_type = 'monthly_rent'
+              AND r.sido = '서울특별시'
+              AND ht.deposit_amount IS NOT NULL
+              AND ht.deposit_amount <= :budgetMax
+              AND ht.monthly_rent IS NOT NULL
+              AND ht.monthly_rent <= :monthlyRentMax
+              AND ht.contract_date >= :since
+              AND ht.building_name IS NOT NULL
+              AND ht.building_name != ''
+            GROUP BY r.sigungu, r.legal_dong_name, ht.building_name
+            ORDER BY COUNT(*) DESC
+            LIMIT 60
+            """)
+    List<ApartmentResult> findMonthlyRentApartments(
+            @Param("budgetMax") Long budgetMaxInManwon,
+            @Param("monthlyRentMax") Long monthlyRentMaxInManwon,
+            @Param("since") LocalDate since
+    );
 }

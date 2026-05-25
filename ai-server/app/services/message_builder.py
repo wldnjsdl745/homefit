@@ -1,4 +1,4 @@
-from app.schemas import BotMessage, BotQuickRepliesMessage, BotTextMessage, Conditions, RegionDetail
+from app.schemas import ApartmentDetail, BotMessage, BotQuickRepliesMessage, BotTextMessage, Conditions, RegionDetail
 from app.services.chip_catalog import (
     CHIP_BUDGET_RESTART,
     CHIP_DEAL_JEONSE,
@@ -45,14 +45,13 @@ class MessageBuilder:
     def result(
         self,
         conditions: Conditions,
-        regions: list[str],
-        region_details: list[RegionDetail] | None = None,
+        apartments: list[ApartmentDetail],
         result_text: str | None = None,
     ) -> list[BotMessage]:
-        if not regions:
+        if not apartments:
             return self.empty_result()
 
-        content = result_text or self.formatter.format(conditions, regions, region_details)
+        content = result_text or self.formatter.format(conditions, apartments)
         return [
             BotTextMessage(type="bot.text", content=content),
             BotQuickRepliesMessage(

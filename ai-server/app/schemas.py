@@ -204,12 +204,28 @@ class RegionDetail(BaseModel):
     safety_grade: str | None = None
 
 
+class ApartmentDetail(BaseModel):
+    sigungu: str
+    dong: str | None = None
+    name: str | None = None
+    avg_price_manwon: int | None = Field(default=None, alias="avg_price_manwon")
+    min_price_manwon: int | None = Field(default=None, alias="min_price_manwon")
+    max_price_manwon: int | None = Field(default=None, alias="max_price_manwon")
+    avg_area_sqm: float | None = Field(default=None, alias="avg_area_sqm")
+    built_year: int | None = Field(default=None, alias="built_year")
+    commute_minutes: int | None = Field(default=None, alias="commute_minutes")
+    deal_count: int | None = Field(default=None, alias="deal_count")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class FilterRegionsResponse(BaseModel):
     regions: list[str] = Field(
-        description="추천 지역 한국어 이름 리스트. v0은 시군구 단위.",
+        description="추천 지역 한국어 이름 리스트. 시군구 단위.",
         examples=[["마포구", "성동구", "광진구"]],
     )
     region_details: list[RegionDetail] = Field(default_factory=list)
+    apartments: list[ApartmentDetail] = Field(default_factory=list)
 
 
 # ─── 헬스체크 / 에러 ──────────────────────────────────────

@@ -6,5 +6,6 @@ import java.util.List;
 
 public record FilterRegionsResponse(
         List<String> regions,
-        @JsonProperty("region_details") List<RegionDetail> regionDetails
+        @JsonProperty("region_details") List<RegionDetail> regionDetails,
+        List<ApartmentDetail> apartments
 ) {}

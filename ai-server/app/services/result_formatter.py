@@ -1,4 +1,4 @@
-from app.schemas import CommuteDestination, Conditions, DealType, RegionDetail
+from app.schemas import ApartmentDetail, CommuteDestination, Conditions, DealType
 
 _COMMUTE_LABEL: dict[CommuteDestination, str] = {
     CommuteDestination.GANGNAM: "강남",
@@ -13,58 +13,62 @@ class ResultFormatter:
     def format(
         self,
         conditions: Conditions,
-        regions: list[str],
-        region_details: list[RegionDetail] | None = None,
+        apartments: list[ApartmentDetail],
     ) -> str:
-        detail_map = {d.name: d for d in (region_details or [])}
         dest_label = (
             _COMMUTE_LABEL.get(conditions.commute_destination, "")
             if conditions.commute_destination
             else ""
         )
 
-        parts = []
-        for name in regions:
-            detail = detail_map.get(name)
-            tags: list[str] = []
-            if detail and detail.commute_minutes is not None and dest_label:
-                tags.append(f"{dest_label}까지 {detail.commute_minutes}분")
-            if detail and detail.safety_grade and conditions.deal_type == DealType.JEONSE:
-                tags.append(f"안전도 {detail.safety_grade}")
-            parts.append(f"{name}({', '.join(tags)})" if tags else name)
-
-        region_text = " · ".join(parts)
-
-        # 헤더: 통근지 명시 여부로 분기
         if dest_label:
-            header = f"{dest_label} 출퇴근을 고려해서 추천한 지역이에요."
+            header = f"{dest_label} 출퇴근을 고려해서 추천한 아파트예요."
         else:
-            header = "조건에 맞는 서울 지역이에요."
+            header = "조건에 맞는 서울 아파트예요."
 
-        # 예산 요약
         if conditions.deal_type == DealType.MONTHLY_RENT:
-            budget = self.format_budget(conditions.budget_max)
-            rent = self.format_budget(conditions.monthly_rent_max)
+            budget = self._fmt_budget(conditions.budget_max)
+            rent = self._fmt_budget(conditions.monthly_rent_max)
             budget_line = f"보증금 {budget} · 월세 {rent} 이하"
         else:
-            deal = self.format_deal_type(conditions.deal_type)
-            budget_line = f"{deal} {self.format_budget(conditions.budget_max)} 이하"
+            deal = self._fmt_deal(conditions.deal_type)
+            budget_line = f"{deal} {self._fmt_budget(conditions.budget_max)} 이하"
 
-        return f"{header}\n{budget_line} 기준으로 살기 좋은 곳이에요.\n\n{region_text}"
+        parts: list[str] = []
+        for apt in apartments:
+            location = f"{apt.dong} {apt.name}" if apt.name else apt.dong or apt.sigungu
+            tags: list[str] = []
+            if apt.avg_price_manwon:
+                tags.append(self._fmt_manwon(apt.avg_price_manwon))
+            if apt.avg_area_sqm:
+                tags.append(f"{apt.avg_area_sqm:.0f}㎡")
+            if apt.built_year:
+                tags.append(f"{apt.built_year}년")
+            if apt.commute_minutes is not None and dest_label:
+                tags.append(f"{dest_label} {apt.commute_minutes}분")
+            tag_str = " · ".join(tags)
+            parts.append(f"{location} ({apt.sigungu})\n  {tag_str}" if tag_str else f"{location} ({apt.sigungu})")
 
-    def format_deal_type(self, deal_type: DealType | None) -> str:
+        apt_text = "\n\n".join(parts)
+        return f"{header}\n{budget_line}\n\n{apt_text}"
+
+    def _fmt_deal(self, deal_type: DealType | None) -> str:
         if deal_type == DealType.JEONSE:
             return "전세"
         if deal_type == DealType.SALE:
             return "매매"
         return "거래 유형"
 
-    def format_budget(self, value: int | None) -> str:
+    def _fmt_budget(self, value: int | None) -> str:
         if value is None:
             return "입력하신"
-
         if value >= 100_000_000:
-            amount = value / 100_000_000
-            return f"{amount:g}억"
-
+            return f"{value / 100_000_000:g}억"
         return f"{round(value / 10_000)}만원"
+
+    def _fmt_manwon(self, manwon: int) -> str:
+        """만원 단위 금액을 '억' 또는 '만원'으로 표기."""
+        won = manwon * 10_000
+        if won >= 100_000_000:
+            return f"평균 {won / 100_000_000:g}억"
+        return f"평균 {manwon}만원"
