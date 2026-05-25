@@ -13,7 +13,7 @@ DB는 환경에 따라 분리합니다.
 
 개발에서는 `docker-compose.yml`의 `db` 서비스와 `db-seed` 서비스를 사용합니다.
 
-운영 EC2에서는 Docker와 MySQL을 올리지 않고, Backend가 RDS endpoint로 직접 연결합니다.
+운영 EC2에서는 Docker MySQL을 올리지 않고, Backend가 RDS endpoint로 직접 연결합니다.
 
 운영 Backend 환경변수 예시:
 
@@ -36,6 +36,118 @@ make rds-count RDS_HOST=your-rds-endpoint.ap-northeast-2.rds.amazonaws.com RDS_P
 
 - [backend.service.example](deploy/systemd/backend.service.example)
 - [ai-server.service.example](deploy/systemd/ai-server.service.example)
+
+## Production Deploy on AWS EC2
+
+운영 배포는 `docker-compose.prod.yml`을 사용합니다.
+
+운영 compose는 아래 서비스만 실행합니다.
+
+```text
+frontend: 80 포트 공개
+ai-server: Docker 내부 통신만 사용
+backend: Docker 내부 통신만 사용, DB는 Amazon RDS 연결
+```
+
+로컬 개발용 `db`, `db-seed` 서비스는 운영 compose에 포함하지 않습니다.
+
+### 1. 서버 접속
+
+```bash
+ssh homefit
+cd ~/homefit
+```
+
+### 2. 기존 개발용 스택 정리
+
+기존에 `docker-compose.yml`로 실행한 컨테이너가 있으면 먼저 내립니다.
+
+```bash
+sudo docker-compose down
+```
+
+### 3. 최신 코드 반영
+
+```bash
+git pull
+```
+
+### 4. 운영 `.env` 설정
+
+```bash
+nano .env
+```
+
+운영 서버의 `.env`에는 최소한 아래 값이 필요합니다.
+
+```env
+SPRING_DATASOURCE_URL=jdbc:mysql://your-rds-endpoint.ap-northeast-2.rds.amazonaws.com:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useSSL=false
+SPRING_DATASOURCE_USERNAME=homefit
+SPRING_DATASOURCE_PASSWORD=your_rds_password
+
+AI_BACKEND_MODE=http
+AI_PROVIDER=openai_compatible
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_API_KEY=your_openrouter_api_key
+OPENAI_MODEL=qwen/qwen-2.5-72b-instruct:free
+LLM_TIMEOUT_MS=30000
+LLM_PROMPT_STYLE=hermes
+
+CORS_ALLOW_ORIGINS=http://your-ec2-public-ip
+VITE_USE_MOCK_CHAT=false
+```
+
+`frontend`는 nginx가 `/chat` 요청을 `ai-server`로 프록시하므로 운영에서는 `VITE_API_BASE_URL`을 비워두거나 생략할 수 있습니다.
+
+### 5. 첫 배포 실행
+
+첫 배포 또는 Dockerfile 변경 후에는 이미지를 빌드합니다.
+
+```bash
+sudo docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+### 6. 이후 재시작
+
+이미 빌드된 이미지로 다시 실행할 때는 빌드 없이 실행합니다.
+
+```bash
+sudo docker-compose -f docker-compose.prod.yml up -d
+```
+
+### 7. 상태와 로그 확인
+
+```bash
+sudo docker-compose -f docker-compose.prod.yml ps
+sudo docker-compose -f docker-compose.prod.yml logs -f --tail=100
+```
+
+개별 서비스 로그:
+
+```bash
+sudo docker-compose -f docker-compose.prod.yml logs -f backend
+sudo docker-compose -f docker-compose.prod.yml logs -f ai-server
+sudo docker-compose -f docker-compose.prod.yml logs -f frontend
+```
+
+### 8. 운영 스택 중지
+
+```bash
+sudo docker-compose -f docker-compose.prod.yml down
+```
+
+### AWS 보안 그룹
+
+EC2 보안 그룹은 앱 접속용 `80` 포트만 공개합니다.
+
+```text
+EC2 inbound: 80
+RDS inbound: 3306 from EC2 security group
+```
+
+`8000`, `8080`, `3307`은 외부에 공개하지 않습니다.
+
+서버에 Docker Compose v2 플러그인이 설치되어 있으면 `docker-compose` 대신 `docker compose`를 사용할 수 있습니다.
 
 ## Frontend
 
