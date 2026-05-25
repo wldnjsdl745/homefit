@@ -14,6 +14,16 @@ export class UserInputParser {
       return this.parseDealTypeTurn(normalized);
     }
 
+    // 출퇴근 단계: workplace가 아직 없으면 그대로 담아 전송 (AI 서버가 매핑)
+    if (current.workplace === undefined) {
+      return { raw: { workplace: normalized }, raw_message: normalized };
+    }
+
+    // 월세 단계: 금액 사전 파싱
+    if (current.deal_type === "monthly_rent" && !current.monthly_rent_max) {
+      return this.parseMonthlyRentTurn(normalized);
+    }
+
     return {
       raw: { preference_text: normalized },
       raw_message: normalized,
@@ -46,6 +56,14 @@ export class UserInputParser {
       return parseFloat(manMatch[1]) * 10_000;
     }
     return null;
+  }
+
+  private parseMonthlyRentTurn(input: string): ParsedUserInput {
+    const amount = this.parseKoreanAmount(input);
+    if (amount !== null) {
+      return { raw: { monthly_rent_max: amount }, raw_message: input };
+    }
+    return { raw: {}, raw_message: input };
   }
 
   private parseDealTypeTurn(input: string): ParsedUserInput {

@@ -127,6 +127,12 @@ class ChatService:
             )
             merged = self.merge_service.merge(prior.conditions, request.raw)
 
+            # 1.5) workplace 있으면 즉시 commute_destination으로 변환 (LLM 불필요)
+            if merged.workplace and merged.commute_destination is None:
+                resolved = _resolve_commute(merged.workplace)
+                if resolved:
+                    merged = merged.model_copy(update={"commute_destination": resolved})
+
             # 2) BE에 세션 등록 + raw(이번 턴) / conditions(누적 머지) 분리 저장
             upserted = await self.backend_client.upsert_conditions(
                 session_id=request.session_id,
