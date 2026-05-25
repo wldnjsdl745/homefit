@@ -10,7 +10,6 @@ AI 서버가 호출하는 내부 API를 제공하고, 사용자 조건 저장과
 - **Spring Boot**: 3.5.14
 - **Build Tool**: Gradle
 - **Database**: MySQL
-- **Migration**: Flyway
 - **Container**: Docker
 
 ## Dependencies
@@ -20,7 +19,6 @@ AI 서버가 호출하는 내부 API를 제공하고, 사용자 조건 저장과
 - **Spring Security**: 인증/인가 및 보안 설정
 - **Spring Validation**: 요청 데이터 검증
 - **Spring Boot Actuator**: 헬스체크 및 애플리케이션 상태 확인
-- **Flyway**: DB 마이그레이션 버전 관리
 - **MySQL Driver**: MySQL DB 연결
 - **Lombok**: 반복 코드 간소화
 
@@ -47,7 +45,6 @@ Backend의 주요 책임:
 - 거래 조건 검증
 - MySQL 거래 데이터 조회
 - 조건에 맞는 지역 목록 반환
-- DB schema migration 실행
 
 ## 주요 API
 
@@ -84,23 +81,8 @@ Backend의 주요 책임:
 - `housing_transactions`: 주거 거래 데이터
 - `chat_messages`: 사용자 입력과 누적 조건 저장
 
-마이그레이션 파일 위치:
-
-```text
-src/main/resources/db/migration
-```
-
-현재 migration:
-
-- `V1__init.sql`
-- `V2__increase_chat_message_created_at_precision.sql`
-- `V3__add_sale_transactions.sql`
-- `V4__add_region_transit.sql`
-- `V5__add_region_commute.sql`
-- `V6__add_region_jeonse_safety.sql`
-- `V7__seed_region_transit.sql`
-- `V8__seed_region_commute.sql`
-- `V9__seed_region_jeonse_safety.sql`
+스키마 생성은 Backend가 수행하지 않습니다.
+개발/운영 DB 모두 스키마와 초기 데이터를 포함한 dump SQL을 import해서 준비합니다.
 
 ## Environment Variables
 
@@ -109,7 +91,6 @@ src/main/resources/db/migration
 | `SPRING_DATASOURCE_URL` | MySQL JDBC URL | 개발 Docker Compose에서는 `jdbc:mysql://db:3306/homefit?...`, 운영에서는 RDS endpoint |
 | `SPRING_DATASOURCE_USERNAME` | DB 사용자명 | 개발 기본값 `homefit` |
 | `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 | 개발 기본값 `homefit` |
-| `SPRING_FLYWAY_BASELINE_VERSION` | 기존 V3 스키마 자동 채택 시 baseline으로 간주할 migration version | `3` |
 
 개발 Docker Compose에서는 기본적으로 아래 DB를 사용합니다.
 
@@ -123,8 +104,7 @@ jdbc:mysql://db:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&a
 jdbc:mysql://your-rds-endpoint.ap-northeast-2.rds.amazonaws.com:3306/homefit?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
 ```
 
-RDS에 이미 `regions`, `housing_transactions`, `chat_messages` 테이블과 `housing_transactions.sale_price_amount` 컬럼이 있고 Flyway 이력이 없다면, Backend는 현재 스키마를 자동으로 `V3` baseline으로 등록합니다.
-이후 `V4`부터의 migration만 실행합니다.
+운영 RDS는 Backend 실행 전에 dump SQL import가 완료되어 있어야 합니다.
 
 ## Local Run
 
