@@ -1,12 +1,6 @@
 from app.schemas import BotMessage, BotQuickRepliesMessage, BotTextMessage, Conditions, RegionDetail
 from app.services.chip_catalog import (
     CHIP_BUDGET_RESTART,
-    CHIP_COMMUTE_GANGNAM,
-    CHIP_COMMUTE_GWANGHWAMUN,
-    CHIP_COMMUTE_HONGDAE,
-    CHIP_COMMUTE_JAMSIL,
-    CHIP_COMMUTE_SKIP,
-    CHIP_COMMUTE_YEOUIDO,
     CHIP_DEAL_JEONSE,
     CHIP_DEAL_MONTHLY_RENT,
     CHIP_DEAL_SALE,
@@ -35,16 +29,12 @@ class MessageBuilder:
 
     def ask_commute(self) -> list[BotMessage]:
         return [
-            BotTextMessage(type="bot.text", content="주로 어디로 출퇴근하시나요? 가까운 업무지구를 선택해주세요."),
-            BotQuickRepliesMessage(
-                type="bot.quick_replies",
-                chips=quick_replies(
-                    CHIP_COMMUTE_GANGNAM,
-                    CHIP_COMMUTE_YEOUIDO,
-                    CHIP_COMMUTE_GWANGHWAMUN,
-                    CHIP_COMMUTE_HONGDAE,
-                    CHIP_COMMUTE_JAMSIL,
-                    CHIP_COMMUTE_SKIP,
+            BotTextMessage(
+                type="bot.text",
+                content=(
+                    "주로 어디서 일하시나요? "
+                    "논현, 역삼, 광화문처럼 알려주시면 통근 시간을 고려해서 추천해드려요. "
+                    "(없으면 '상관없어요'라고 입력해주세요)"
                 ),
             ),
         ]

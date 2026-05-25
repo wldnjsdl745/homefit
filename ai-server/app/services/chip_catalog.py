@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.schemas import CommuteDestination, Conditions, DealType, QuickReplyChip
+from app.schemas import Conditions, DealType, QuickReplyChip
 
 
 @dataclass(frozen=True)
@@ -88,48 +88,6 @@ DEAL_CHIPS: tuple[ChipDefinition, ...] = (
     CHIP_DEAL_SALE,
 )
 
-# ─── Q3: 통근 목적지 (commute_destination) ────────────────
-
-CHIP_COMMUTE_GANGNAM: ChipDefinition = ChipDefinition(
-    chip_id="commute_gangnam",
-    label="강남",
-    raw=Conditions(commute_destination=CommuteDestination.GANGNAM),
-)
-CHIP_COMMUTE_YEOUIDO: ChipDefinition = ChipDefinition(
-    chip_id="commute_yeouido",
-    label="여의도",
-    raw=Conditions(commute_destination=CommuteDestination.YEOUIDO),
-)
-CHIP_COMMUTE_GWANGHWAMUN: ChipDefinition = ChipDefinition(
-    chip_id="commute_gwanghwamun",
-    label="광화문",
-    raw=Conditions(commute_destination=CommuteDestination.GWANGHWAMUN),
-)
-CHIP_COMMUTE_HONGDAE: ChipDefinition = ChipDefinition(
-    chip_id="commute_hongdae",
-    label="홍대",
-    raw=Conditions(commute_destination=CommuteDestination.HONGDAE),
-)
-CHIP_COMMUTE_JAMSIL: ChipDefinition = ChipDefinition(
-    chip_id="commute_jamsil",
-    label="잠실",
-    raw=Conditions(commute_destination=CommuteDestination.JAMSIL),
-)
-CHIP_COMMUTE_SKIP: ChipDefinition = ChipDefinition(
-    chip_id="commute_skip",
-    label="상관없어요",
-    raw=Conditions(commute_skipped=True),
-)
-
-COMMUTE_CHIPS: tuple[ChipDefinition, ...] = (
-    CHIP_COMMUTE_GANGNAM,
-    CHIP_COMMUTE_YEOUIDO,
-    CHIP_COMMUTE_GWANGHWAMUN,
-    CHIP_COMMUTE_HONGDAE,
-    CHIP_COMMUTE_JAMSIL,
-    CHIP_COMMUTE_SKIP,
-)
-
 # ─── 액션 칩 (값 매핑 없음) ──────────────────────────────
 # 사용자 의도 표시용. raw는 비어 있고 FE가 처리(세션 재시작 등).
 
@@ -159,7 +117,7 @@ ACTION_CHIPS: tuple[ChipDefinition, ...] = (
 
 CHIP_DEFINITIONS: dict[str, ChipDefinition] = {
     chip.chip_id: chip
-    for chip in (*BUDGET_CHIPS, *DEAL_CHIPS, *COMMUTE_CHIPS, *ACTION_CHIPS)
+    for chip in (*BUDGET_CHIPS, *DEAL_CHIPS, *ACTION_CHIPS)
 }
 
 

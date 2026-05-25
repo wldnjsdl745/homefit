@@ -25,11 +25,61 @@ from __future__ import annotations
 import httpx
 
 from app.config import Settings
-from app.schemas import ChatRequest, ChatResponse, Conditions, DealType, ErrorResponse
+from app.schemas import ChatRequest, ChatResponse, CommuteDestination, Conditions, DealType, ErrorResponse
 from app.services.backend_client import BackendClient, BackendClientError
 from app.services.llm_provider import DummyLlmProvider, LlmProvider
 from app.services.merge_service import MergeService
 from app.services.message_builder import MessageBuilder
+
+_WORKPLACE_TO_COMMUTE: dict[str, CommuteDestination] = {
+    # 강남권
+    "강남": CommuteDestination.GANGNAM,
+    "논현": CommuteDestination.GANGNAM,
+    "역삼": CommuteDestination.GANGNAM,
+    "선릉": CommuteDestination.GANGNAM,
+    "삼성": CommuteDestination.GANGNAM,
+    "도곡": CommuteDestination.GANGNAM,
+    "양재": CommuteDestination.GANGNAM,
+    "신논현": CommuteDestination.GANGNAM,
+    "테헤란": CommuteDestination.GANGNAM,
+    "대치": CommuteDestination.GANGNAM,
+    # 여의도권
+    "여의도": CommuteDestination.YEOUIDO,
+    "영등포": CommuteDestination.YEOUIDO,
+    "당산": CommuteDestination.YEOUIDO,
+    # 광화문권
+    "광화문": CommuteDestination.GWANGHWAMUN,
+    "종로": CommuteDestination.GWANGHWAMUN,
+    "을지로": CommuteDestination.GWANGHWAMUN,
+    "시청": CommuteDestination.GWANGHWAMUN,
+    "청계천": CommuteDestination.GWANGHWAMUN,
+    "세종대로": CommuteDestination.GWANGHWAMUN,
+    "명동": CommuteDestination.GWANGHWAMUN,
+    # 홍대권
+    "홍대": CommuteDestination.HONGDAE,
+    "신촌": CommuteDestination.HONGDAE,
+    "합정": CommuteDestination.HONGDAE,
+    "망원": CommuteDestination.HONGDAE,
+    "연남": CommuteDestination.HONGDAE,
+    "상수": CommuteDestination.HONGDAE,
+    # 잠실권
+    "잠실": CommuteDestination.JAMSIL,
+    "송파": CommuteDestination.JAMSIL,
+    "석촌": CommuteDestination.JAMSIL,
+    "문정": CommuteDestination.JAMSIL,
+    "가락": CommuteDestination.JAMSIL,
+}
+
+
+def _resolve_commute(workplace: str | None) -> CommuteDestination | None:
+    if not workplace:
+        return None
+    normalized = workplace.replace(" ", "")
+    for keyword, dest in _WORKPLACE_TO_COMMUTE.items():
+        if keyword in normalized:
+            return dest
+    return None
+
 
 _SYS_ERROR = ErrorResponse(
     code="AI-SYS-001",
@@ -129,10 +179,15 @@ class ChatService:
                     bot_messages=self.message_builder.ask_monthly_rent(),
                 )
 
-            # 6) Dialog 완료. 누적 텍스트 있으면 LLM 1회 추출 → BE 재저장.
+            # 6) Dialog 완료. 누적 텍스트 있으면 LLM 1회 추출 → workplace 매핑 → BE 재저장.
             if state.messages:
                 combined = " / ".join(state.messages)
                 extracted = await self.llm_provider.extract_conditions(combined)
+                # workplace → commute_destination 매핑 (LLM이 동네 이름을 추출했으면)
+                if extracted.workplace and extracted.commute_destination is None:
+                    resolved = _resolve_commute(extracted.workplace)
+                    if resolved:
+                        extracted = extracted.model_copy(update={"commute_destination": resolved})
                 conditions = self.merge_service.merge(conditions, extracted)
                 upserted2 = await self.backend_client.upsert_conditions(
                     session_id=sid,
@@ -142,7 +197,24 @@ class ChatService:
                 conditions = upserted2.conditions
                 state.conditions = conditions
 
-            # 7) BE 필터링 → 결과
+            # 7) 필수 조건 검증 — LLM 추출 후에도 없으면 다시 질문
+            if conditions.deal_type is None:
+                state.step = 1  # ask_deal_type 재진입
+                return ChatResponse(
+                    session_id=sid,
+                    state="asking",
+                    bot_messages=self.message_builder.ask_deal_type(),
+                )
+
+            if conditions.budget_max is None:
+                state.step = 0  # ask_budget 재진입
+                return ChatResponse(
+                    session_id=sid,
+                    state="asking",
+                    bot_messages=self.message_builder.ask_budget(),
+                )
+
+            # 8) BE 필터링 → 결과
             regions = await self.backend_client.filter_regions(conditions)
             return ChatResponse(
                 session_id=sid,

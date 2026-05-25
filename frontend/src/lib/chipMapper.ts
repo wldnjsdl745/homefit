@@ -8,6 +8,7 @@
  * 정의된 칩 그룹:
  *  - 자본금 (`budget_*`): Q1 단계, `Conditions.budget_max` 매핑
  *  - 거래 유형 (`deal_*`): Q2 단계, `Conditions.deal_type` 매핑
+ *  - 통근 칩 제거: 자유 텍스트로 입력 (논현, 역삼 등), LLM이 workplace 추출
  *  - 액션 (`restart` / `budget_restart` / `retry`): 값 매핑 없음, FE가 의도 처리
  */
 
@@ -30,14 +31,6 @@ export class ChipMapper {
     ["deal_jeonse", { kind: "submit", raw: { deal_type: "jeonse" }, label: "전세" }],
     ["deal_monthly_rent", { kind: "submit", raw: { deal_type: "monthly_rent" }, label: "월세" }],
     ["deal_sale", { kind: "submit", raw: { deal_type: "sale" }, label: "매매" }],
-
-    // ─── Q3: 통근 목적지 ─────────────────────────────────
-    ["commute_gangnam", { kind: "submit", raw: { commute_destination: "gangnam" }, label: "강남" }],
-    ["commute_yeouido", { kind: "submit", raw: { commute_destination: "yeouido" }, label: "여의도" }],
-    ["commute_gwanghwamun", { kind: "submit", raw: { commute_destination: "gwanghwamun" }, label: "광화문" }],
-    ["commute_hongdae", { kind: "submit", raw: { commute_destination: "hongdae" }, label: "홍대" }],
-    ["commute_jamsil", { kind: "submit", raw: { commute_destination: "jamsil" }, label: "잠실" }],
-    ["commute_skip", { kind: "submit", raw: { commute_skipped: true }, label: "상관없어요" }],
 
     // ─── 액션 (값 매핑 없음) ────────────────────────────
     ["restart", { kind: "restart", label: "다시 추천" }],

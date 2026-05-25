@@ -88,17 +88,22 @@ class Conditions(BaseModel):
                 "주요 통근 목적지 업무지구. "
                 "gangnam / yeouido / gwanghwamun / hongdae / jamsil. "
                 "null이면 통근 시간 점수 미적용. "
-                "추출 방법: 칩(`commute_*`). 단계: v1."
+                "추출 방법: AI 서버가 workplace → 업무지구 매핑."
             ),
             examples=["gangnam", "yeouido"],
         ),
     ] = None
 
-    commute_skipped: Annotated[
-        bool | None,
+    workplace: Annotated[
+        str | None,
         Field(
             default=None,
-            description="통근 목적지 질문을 건너뜀. True이면 commute_destination=null로 처리.",
+            description=(
+                "사용자가 말한 직장/출퇴근 지역 (자유 텍스트). "
+                "예: '논현', '역삼역', '광화문 근처'. "
+                "AI 서버가 commute_destination으로 변환."
+            ),
+            examples=["논현", "역삼", "광화문"],
         ),
     ] = None
 

@@ -49,13 +49,14 @@ export class UserInputParser {
   }
 
   private parseDealTypeTurn(input: string): ParsedUserInput {
-    if (input === "전세") {
-      return { raw: { deal_type: "jeonse" }, raw_message: input };
-    }
-    if (input === "월세") {
+    // 월세가 포함되면 우선 월세 (전세보다 먼저 체크 — "전세 말고 월세" 대응)
+    if (input.includes("월세")) {
       return { raw: { deal_type: "monthly_rent" }, raw_message: input };
     }
-    if (input === "매매") {
+    if (input.includes("전세")) {
+      return { raw: { deal_type: "jeonse" }, raw_message: input };
+    }
+    if (input.includes("매매") || input.includes("구매") || input.includes("분양")) {
       return { raw: { deal_type: "sale" }, raw_message: input };
     }
     return { raw: {}, raw_message: input };

@@ -84,12 +84,13 @@ async def test_chat_service_uses_llm_provider_once_at_dialog_complete() -> None:
         )
     )
     assert turn2.state == "asking"
-    assert "출퇴근" in turn2.bot_messages[0].content
+    assert "일하시나요" in turn2.bot_messages[0].content
 
     turn3 = await service.handle(
         ChatRequest(
             session_id=turn2.session_id,
-            raw=Conditions(commute_skipped=True),
+            raw=Conditions(),
+            raw_message="상관없어요",
         )
     )
     assert turn3.state == "result"

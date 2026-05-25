@@ -19,7 +19,7 @@ class DialogPolicy:
         if conditions.deal_type is None:
             return DialogStep.ASK_DEAL_TYPE
 
-        if conditions.commute_destination is None and not conditions.commute_skipped:
+        if conditions.commute_destination is None and conditions.workplace is None:
             return DialogStep.ASK_COMMUTE
 
         if conditions.deal_type == DealType.MONTHLY_RENT and conditions.monthly_rent_max is None:
