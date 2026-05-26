@@ -23,9 +23,22 @@ class FailingBackendClient(BackendClient):
         raise ValueError("backend failed")
 
 
-class StaticLlmProvider:
+class ScenarioLlmProvider:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
     async def extract_conditions(self, raw_message: str) -> Conditions:
-        return Conditions(budget_max=200_000_000, deal_type="jeonse")
+        self.calls.append(raw_message)
+        if "매매" in raw_message:
+            return Conditions(budget_max=500_000_000, deal_type="sale")
+        return Conditions(
+            budget_max=200_000_000,
+            deal_type="jeonse",
+            preferred_region="마포구",
+            workplace="논현",
+            age_group="young_adult",
+            infrastructure_priorities=["medical", "fitness"],
+        )
 
 
 @pytest.mark.asyncio
@@ -55,77 +68,61 @@ async def test_chat_service_returns_fallback_when_dummy_fail_enabled() -> None:
 
 
 @pytest.mark.asyncio
-async def test_chat_service_uses_llm_provider_once_at_dialog_complete() -> None:
-    """단일 LLM 호출 정책: 턴별 추출 없이 누적 → 완료 시 1회 추출.
-
-    turn 1 (자본금 텍스트): LLM 미호출, 거래 유형 질문.
-    turn 2 (거래 유형 텍스트): 희망 지역 질문.
-    turn 3-5: 통근지/연령층/인프라 질문.
-    turn 6: 완료 → LLM 1회 → mock filter → 결과.
-    """
+async def test_chat_service_returns_result_when_text_contains_all_conditions() -> None:
+    """한 문장에 필요한 조건이 모두 들어오면 중간 질문 없이 결과로 간다."""
     from app.services.backend_client import MockBackendClient
 
+    llm = ScenarioLlmProvider()
     service = ChatService(
         backend_client=MockBackendClient(),
         settings=Settings(AI_BACKEND_MODE="mock"),
-        llm_provider=StaticLlmProvider(),
+        llm_provider=llm,
     )
 
-    turn1 = await service.handle(
-        ChatRequest(session_id=None, raw=Conditions(), raw_message="2억 정도 있어요")
-    )
-    assert turn1.state == "asking"
-    assert (
-        turn1.bot_messages[0].content
-        == "서울 실거래 데이터 기준으로 전세, 월세, 매매 중 어떤 거래를 볼까요?"
-    )
-
-    turn2 = await service.handle(
+    response = await service.handle(
         ChatRequest(
-            session_id=turn1.session_id,
+            session_id=None,
             raw=Conditions(),
-            raw_message="전세로 가자",
+            raw_message="2억 전세, 마포구 희망, 논현 출근, 20대 많고 병원 체육관 중요",
         )
     )
-    assert turn2.state == "asking"
-    assert "희망하는 지역" in turn2.bot_messages[0].content
 
-    turn3 = await service.handle(
+    assert response.state == "result"
+    assert len(llm.calls) == 1
+    assert "전세" in response.bot_messages[0].content
+    assert "강남" in response.bot_messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_chat_service_can_change_conditions_after_result() -> None:
+    """결과 이후 같은 세션에서 조건을 바꾸면 기존 조건 위에 덮어쓴다."""
+    from app.services.backend_client import MockBackendClient
+
+    llm = ScenarioLlmProvider()
+    service = ChatService(
+        backend_client=MockBackendClient(),
+        settings=Settings(AI_BACKEND_MODE="mock"),
+        llm_provider=llm,
+    )
+
+    first = await service.handle(
         ChatRequest(
-            session_id=turn2.session_id,
+            session_id=None,
             raw=Conditions(),
-            raw_message="상관없어요",
+            raw_message="2억 전세, 마포구 희망, 논현 출근, 연령 상관없고 인프라 상관없음",
         )
     )
-    assert turn3.state == "asking"
-    assert "직장이나 자주 가는 곳" in turn3.bot_messages[0].content
+    assert first.state == "result"
 
-    turn4 = await service.handle(
+    changed = await service.handle(
         ChatRequest(
-            session_id=turn3.session_id,
+            session_id=first.session_id,
             raw=Conditions(),
-            raw_message="상관없어요",
+            raw_message="매매 5억으로 바꿔줘",
         )
     )
-    assert turn4.state == "asking"
-    assert "연령층" in turn4.bot_messages[0].content
 
-    turn5 = await service.handle(
-        ChatRequest(
-            session_id=turn4.session_id,
-            raw=Conditions(age_group="any"),
-        )
-    )
-    assert turn5.state == "asking"
-    assert "주변 인프라" in turn5.bot_messages[0].content
-
-    turn6 = await service.handle(
-        ChatRequest(
-            session_id=turn5.session_id,
-            raw=Conditions(infrastructure_priorities=[]),
-        )
-    )
-    assert turn6.state == "result"
-    assert turn6.bot_messages[0].type == "bot.text"
-    assert "전세" in turn6.bot_messages[0].content
-    assert "이하" in turn6.bot_messages[0].content
+    assert changed.state == "result"
+    assert changed.bot_messages[0].type == "bot.text"
+    assert "매매" in changed.bot_messages[0].content
+    assert "5억" in changed.bot_messages[0].content

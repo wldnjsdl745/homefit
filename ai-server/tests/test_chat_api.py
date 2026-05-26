@@ -80,7 +80,7 @@ def test_chat_flow_with_mock_backend() -> None:
         assert result.json()["state"] == "result"
         assert result.json()["bot_messages"][0]["type"] == "bot.text"
         assert "전세" in result.json()["bot_messages"][0]["content"]
-        assert "서울 아파트" in result.json()["bot_messages"][0]["content"]
+        assert "추천 아파트" in result.json()["bot_messages"][0]["content"]
 
 
 def test_chat_reaches_result_after_lifestyle_turns() -> None:
