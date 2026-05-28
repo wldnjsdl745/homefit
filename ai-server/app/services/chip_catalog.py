@@ -18,7 +18,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.schemas import Conditions, DealType, QuickReplyChip
+from app.schemas import (
+    AgeGroupPreference,
+    Conditions,
+    DealType,
+    InfrastructurePriority,
+    QuickReplyChip,
+)
 
 
 @dataclass(frozen=True)
@@ -88,6 +94,78 @@ DEAL_CHIPS: tuple[ChipDefinition, ...] = (
     CHIP_DEAL_SALE,
 )
 
+# ─── Q5: 선호 연령층/생활 단계 ──────────────────────────
+
+CHIP_AGE_YOUNG: ChipDefinition = ChipDefinition(
+    chip_id="age_young_adult",
+    label="20-30대 많은 곳",
+    raw=Conditions(age_group=AgeGroupPreference.YOUNG_ADULT),
+)
+CHIP_AGE_FAMILY: ChipDefinition = ChipDefinition(
+    chip_id="age_family",
+    label="아이 키우는 가족",
+    raw=Conditions(age_group=AgeGroupPreference.FAMILY),
+)
+CHIP_AGE_SENIOR: ChipDefinition = ChipDefinition(
+    chip_id="age_senior",
+    label="조용한 고령층 지역",
+    raw=Conditions(age_group=AgeGroupPreference.SENIOR),
+)
+CHIP_AGE_ANY: ChipDefinition = ChipDefinition(
+    chip_id="age_any",
+    label="상관없음",
+    raw=Conditions(age_group=AgeGroupPreference.ANY),
+)
+
+AGE_CHIPS: tuple[ChipDefinition, ...] = (
+    CHIP_AGE_YOUNG,
+    CHIP_AGE_FAMILY,
+    CHIP_AGE_SENIOR,
+    CHIP_AGE_ANY,
+)
+
+# ─── Q6: 중요 인프라 ───────────────────────────────────
+
+CHIP_INFRA_SCHOOL: ChipDefinition = ChipDefinition(
+    chip_id="infra_school",
+    label="학교",
+    raw=Conditions(infrastructure_priorities=[InfrastructurePriority.SCHOOL]),
+)
+CHIP_INFRA_MEDICAL: ChipDefinition = ChipDefinition(
+    chip_id="infra_medical",
+    label="병원",
+    raw=Conditions(infrastructure_priorities=[InfrastructurePriority.MEDICAL]),
+)
+CHIP_INFRA_FITNESS: ChipDefinition = ChipDefinition(
+    chip_id="infra_fitness",
+    label="운동시설",
+    raw=Conditions(infrastructure_priorities=[InfrastructurePriority.FITNESS]),
+)
+CHIP_INFRA_QUIET: ChipDefinition = ChipDefinition(
+    chip_id="infra_quiet",
+    label="조용한 곳",
+    raw=Conditions(infrastructure_priorities=[InfrastructurePriority.QUIET]),
+)
+CHIP_INFRA_TRANSIT: ChipDefinition = ChipDefinition(
+    chip_id="infra_transit",
+    label="교통",
+    raw=Conditions(infrastructure_priorities=[InfrastructurePriority.TRANSIT]),
+)
+CHIP_INFRA_ANY: ChipDefinition = ChipDefinition(
+    chip_id="infra_any",
+    label="상관없음",
+    raw=Conditions(infrastructure_priorities=[]),
+)
+
+INFRA_CHIPS: tuple[ChipDefinition, ...] = (
+    CHIP_INFRA_SCHOOL,
+    CHIP_INFRA_MEDICAL,
+    CHIP_INFRA_FITNESS,
+    CHIP_INFRA_QUIET,
+    CHIP_INFRA_TRANSIT,
+    CHIP_INFRA_ANY,
+)
+
 # ─── 액션 칩 (값 매핑 없음) ──────────────────────────────
 # 사용자 의도 표시용. raw는 비어 있고 FE가 처리(세션 재시작 등).
 
@@ -117,7 +195,7 @@ ACTION_CHIPS: tuple[ChipDefinition, ...] = (
 
 CHIP_DEFINITIONS: dict[str, ChipDefinition] = {
     chip.chip_id: chip
-    for chip in (*BUDGET_CHIPS, *DEAL_CHIPS, *ACTION_CHIPS)
+    for chip in (*BUDGET_CHIPS, *DEAL_CHIPS, *AGE_CHIPS, *INFRA_CHIPS, *ACTION_CHIPS)
 }
 
 

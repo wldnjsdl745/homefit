@@ -1,696 +1,709 @@
 # Homefit 구현 리서치
 
-작성일: 2026-04-25
+작성일: 2026-05-25
 
-## 1. 리서치 범위
+## 1. 분석 범위
 
-본 문서는 아래 기획 문서를 기준으로 현재 저장소 구현 상태를 대조한 결과다.
+현재 `homefit/` 저장소는 이전 리서치 문서 작성 시점보다 크게 리팩터링되어 있다. 본 문서는 현재 파일 기준으로 아래 영역을 다시 확인한 결과다.
 
-- `plan.md`
-- `backend-mvp.md`
-- `ai-backend.md`
-- `ai-frontend.md`
+- Frontend: React, TypeScript, Vite, Tailwind 채팅 UI
+- AI Server: FastAPI, 대화 오케스트레이션, LLM 의미 추출, BE 내부 API 연동
+- Backend: Spring Boot, 내부 API, JPA, Flyway, MySQL
+- Docker/Makefile: 전체 스택 실행, DB seed import, 검증 명령
+- 문서: `README.md`, `docs/api/API.md`, `docs/data/ERD.md`
+- 데이터셋: 작업 루트 `files/2015.csv` ~ `files/2024.csv`
 
-확인 대상은 다음 네 영역이다.
-
-- 프론트엔드 실제 구현
-- AI 서버 실제 구현
-- Docker 구성과 실행 방식
-- 백엔드 구현 여부와 기획 대비 차이
-
-추가로 테스트와 빌드 검증 결과도 포함했다.
-
----
+주의: IDE 탭에 보이는 `아파트(매매)_실거래가_20260524170217.csv` 파일은 현재 작업 트리에서 찾지 못했다. 실제 존재하는 CSV는 `/Users/ian/Documents/koreadeep/help_j/project/files/*.csv`이며, 이 데이터는 아파트 실거래가가 아니라 거래처/제품/수량/금액 중심의 영업 또는 재고성 데이터다.
 
 ## 2. 전체 결론
 
-현재 저장소는 "프론트엔드 + AI 서버 + Docker 개발 환경" 기준으로는 MVP v0 데모가 동작하는 상태다.
+현재 구현은 더 이상 "프론트 + AI 서버 mock 데모" 수준이 아니다. 실제 구조는 다음 단계까지 올라와 있다.
 
-실제로 구현된 핵심 범위는 다음과 같다.
+```text
+Frontend -> AI Server -> Backend -> MySQL
+```
 
-- 프론트는 풀스크린 채팅 UI 형태로 동작한다.
-- 페이지 진입 시 자동으로 첫 질문을 요청한다.
-- 사용자가 숫자를 입력하면 예산으로 해석한다.
-- 사용자가 `전세` 또는 `월세`를 입력하면 거래 유형으로 해석한다.
-- AI 서버는 `/chat` 단일 진입점으로 동작한다.
-- AI 서버는 예산/거래유형 수집 상태를 판단하고 다음 질문 또는 결과 문장을 반환한다.
-- Docker로 프론트와 AI 서버를 함께 띄울 수 있다.
-- 프론트 lint/test/build, AI 서버 lint/test가 모두 통과한다.
+구현된 핵심 변화:
 
-반면, 기획 문서 기준으로 아직 미구현인 핵심 범위도 명확하다.
+- `docker-compose.yml`에 `frontend`, `ai-server`, `backend`, `db`, `db-seed`가 모두 포함됐다.
+- Backend에 `/internal/upsert-conditions`, `/internal/filter`, `/healthz`가 구현됐다.
+- Flyway 마이그레이션으로 `regions`, `housing_transactions`, `chat_messages`, 교통/통근/전세안전 보조 테이블이 만들어진다.
+- `deal_type`은 `jeonse`, `monthly_rent`, `sale`까지 확장됐다.
+- AI 서버는 OpenAI-compatible/Ollama-compatible LLM provider를 통해 자유 텍스트에서 조건을 추출할 수 있다.
+- Frontend는 quick reply 칩을 실제 렌더링하고 클릭을 raw conditions로 매핑한다.
+- 매매 CSV 적재용 `scripts/load_sale_transactions.py`가 추가됐다.
 
-- Spring Boot 백엔드 내부 API는 사실상 아직 없다.
-- MySQL, Flyway, Entity, Repository, 필터링 API, 시드 데이터 적재가 없다.
-- 현재 AI 서버의 결과 추천은 실제 백엔드 조회가 아니라 mock backend 규칙 기반이다.
-- 기획에 있던 quick reply 칩 중심 UX는 타입과 컴포넌트만 있고 실제 화면 흐름에는 연결되지 않았다.
+다만 현재 완성도는 "전체 통합 구현의 초안"에 가깝다. 바로 정리해야 할 리스크도 있다.
 
-즉, 지금 구현물은 "완전한 추천 시스템"이라기보다 "기획된 대화 흐름을 프론트와 AI 서버 중심으로 재현한 MVP 데모"로 보는 것이 정확하다.
+- Backend 테스트 1개가 실패한다. 서울 한정 필터 구현과 경기 지역을 기대하는 테스트가 충돌한다.
+- `db-seed`는 seed SQL 파일이 없으면 실패하며, `ai-server`가 `db-seed` 완료를 기다리므로 기본 `docker compose up`이 데이터 파일 유무에 민감하다.
+- 작업 루트의 `files/*.csv` 데이터셋은 Homefit 부동산 도메인과 스키마가 맞지 않아 현재 DB seed로 직접 사용할 수 없다.
+- AI 서버는 BE에 conditions를 저장하면서도 대화 step은 여전히 in-memory로 들고 있어 재시작/다중 인스턴스에서 대화 단계가 복원되지 않는다.
+- 문서 일부(`ERD.md`, `README.md`)는 최신 구현과 어긋난 내용이 남아 있다.
 
----
+## 3. 현재 아키텍처
 
-## 3. 아키텍처 구현 상태
+### 3.1 런타임 구조
 
-기획 의도는 다음 구조였다.
+현재 기본 실행 구조:
 
-- FE -> AI 서버 -> BE -> DB
+```text
+React FE
+  -> POST /chat
+FastAPI AI Server
+  -> POST /internal/upsert-conditions
+  -> POST /internal/filter
+Spring Boot Backend
+  -> MySQL
+```
 
-현재 실제 구조는 다음에 가깝다.
+구성 근거:
 
-- FE -> AI 서버 -> MockBackendClient 메모리 세션/더미 추천
+- FE API 진입점: `frontend/src/api/chat.ts`
+- AI 공개 API: `ai-server/app/main.py`
+- AI -> BE client: `ai-server/app/services/backend_client.py`
+- BE 내부 API: `backend/src/main/java/com/homefit/internal/api/InternalApiController.java`
+- DB schema: `backend/src/main/resources/db/migration/*.sql`
+- Compose: `docker-compose.yml`
 
-근거:
+### 3.2 책임 분리
 
-- 프론트는 `frontend/src/api/chat.ts`에서 `/chat`만 호출한다.
-- AI 서버는 `ai-server/app/main.py`에서 FE-facing `/chat`과 `/healthz`만 제공한다.
-- AI 서버는 `ai-server/app/config.py`의 `AI_BACKEND_MODE`로 `mock` 또는 `http`를 선택한다.
-- `docker-compose.yml`에서는 `AI_BACKEND_MODE` 기본값이 `mock`이다.
-- 실제 backend 디렉터리에는 `BackendApplication.java`만 있고 컨트롤러, 엔티티, 리포지토리, 내부 API 구현이 없다.
+현재 책임 분리는 비교적 명확하다.
 
-정리하면 "FE가 BE를 직접 호출하지 않는다"는 아키텍처 원칙은 지켜졌지만, "AI 서버가 실제 Spring Boot 백엔드를 오케스트레이션한다"는 단계까지는 아직 도달하지 못했다.
+| 영역 | 현재 책임 |
+|---|---|
+| Frontend | 입력 파싱, raw/raw_message 전송, bot message 렌더, chip click 처리 |
+| AI Server | 대화 단계 제어, LLM 의미 추출, workplace -> commute_destination 매핑, BE 호출, 결과 문장 생성 |
+| Backend | 조건 이력 저장, DB 기반 지역 필터링, 가격/통근/교통/전세안전 점수 계산 |
+| MySQL | 지역/거래/세션 조건/보조 점수 데이터 저장 |
 
----
+중요한 예외:
 
-## 4. 프론트엔드 상세 분석
+- AI 서버가 `_session_state`로 step과 누적 텍스트를 메모리에 보관한다.
+- 따라서 DB가 conditions를 저장해도 AI 서버 재시작 후 "현재 몇 번째 질문인지"는 복원되지 않는다.
 
-### 4.1 UI 구조
+## 4. Frontend 분석
 
-프론트는 `frontend/src/components/chat/ChatScreen.tsx` 중심의 단일 채팅 화면으로 구성되어 있다.
+### 4.1 구현 상태
 
-구현된 특징:
+Frontend는 `ChatScreen` 중심의 단일 채팅 UI다.
 
-- 전체 높이를 쓰는 풀스크린 레이아웃
-- 상단 헤더에 `HOMEFIT` 로고
-- 큰 타이틀 영역과 채팅 패널 분리
-- 채팅 상태 표시: `Thinking` / `Ready`
-- 메시지 리스트 + 하단 입력창 구조
+주요 구현:
 
-기획 문서의 "풀스크린 챗봇" 방향성과는 대체로 일치한다.
+- 첫 진입 시 자동 `/chat` 호출
+- 사용자 텍스트 입력
+- quick reply 렌더링 및 클릭 처리
+- `raw`와 `raw_message`를 함께 전송
+- 응답의 `bot_messages`를 순차적으로 출력
+- Remote/Mock gateway 전환 구조
 
-차이점:
+이전 리서치에서 "quick reply 타입만 있고 화면에 연결되지 않았다"고 적힌 부분은 더 이상 맞지 않는다. 현재 `MessageBubble.tsx`는 `bot.quick_replies`를 `QuickReplyChips`로 렌더하고, `ChatScreen.tsx`는 `submitChip`을 `MessageList`에 넘긴다.
 
-- 기획 문서에 있던 `새 대화` 버튼은 없다.
-- 비교 보기, 카드 UI, 모달/슬라이드업, 지역 카드 등은 없다.
-- 실제 UI 문구는 한국어 대화이지만 헤더와 입력 placeholder 일부는 영어다.
+### 4.2 입력 파싱
 
-### 4.2 상태 관리와 대화 흐름
+`frontend/src/lib/userInputParser.ts` 기준:
 
-핵심 상태 로직은 `frontend/src/hooks/useChat.ts`에 있다.
+- 예산 미입력 상태에서는 숫자, `2억`, `2억5000만`, `5000만` 등을 원 단위 숫자로 변환한다.
+- 거래 유형 미입력 상태에서는 `월세`, `전세`, `매매/구매/분양`을 감지한다.
+- 필수 조건 이후 텍스트는 `preference_text`와 `raw_message`로 전송한다.
 
-구현된 상태 값:
+개선된 점:
 
-- `sessionId`
-- `messages`
-- `status`
-- `lastRaw`
-- `conditions`
+- `2억 정도` 같은 자연스러운 금액 표현을 일부 처리한다.
+- `sale`이 FE 타입과 파서에 들어왔다.
+- 이후 단계 자유 텍스트를 LLM 추출 대상으로 보낼 수 있다.
 
-구현된 동작:
+남은 한계:
 
-- 첫 렌더 후 자동 `start()` 호출
-- 첫 호출은 빈 raw `{}` 로 전송
-- 요청 중에는 중복 전송 차단
-- 사용자 입력은 로컬 조건 상태와 합쳐 추적
-- 응답 `bot_messages`는 순차적으로 화면에 추가
-- 에러 시 fallback 메시지를 채팅에 추가
+- 첫 예산 질문에서 예산 quick reply는 서버 카탈로그에 정의되어 있지만 실제 `ask_budget()` 응답에는 포함되지 않는다.
+- `commute_destination`은 AI 스키마에는 있지만 FE `Conditions` 타입에는 아직 없다. 현재는 `workplace`/LLM 경로로만 처리된다.
+- 월세 상한 입력은 FE에서 구조화하지 않고, 후속 텍스트를 LLM이 추출하는 흐름에 기대고 있다.
 
-세부 기능:
+### 4.3 UX 평가
 
-- `useEffect`로 최초 1회 자동 부트스트랩
-- `BotMessageSequencer`로 다중 봇 메시지를 420ms 간격으로 순차 표시
-- `session_id`는 서버 응답에서 받아 다음 요청에 재사용
-- 마지막 전송 raw를 `retry` 용도로 저장
+현재 UX는 MVP 대화 흐름으로는 충분히 동작한다.
 
-주의점:
+- 예산 -> 거래 유형 -> 통근지 -> 필요 시 월세 상한 -> 결과
+- 결과/빈 결과/fallback에 다시 추천, 자본금 다시, 재시도 칩 제공
 
-- `restart`, `retry`, `hasError`는 훅에서 제공되지만 현재 `ChatScreen`에서 실제 사용되지 않는다.
-- `ChatMessageFactory.botMessages()`도 현재 사용되지 않는다.
+다만 아직 결과는 텍스트 중심이다. 지역 카드, 비교 테이블, 지도, 조건 수정 UI는 없다.
 
-### 4.3 사용자 입력 파싱
+## 5. AI Server 분석
 
-`frontend/src/lib/userInputParser.ts` 기준으로 현재 입력 해석 방식은 매우 단순하다.
+### 5.1 주요 변화
 
-실제 규칙:
+AI 서버는 단순 상태 머신에서 "대화 오케스트레이터 + 의미 추출기"로 확장됐다.
 
-- 아직 예산이 없으면 숫자만 입력 가능
-- 예산이 있고 거래 유형이 없으면 `전세` 또는 `월세`만 허용
-- 둘 다 있으면 다시 숫자를 예산으로 덮어씀
+구현된 요소:
 
-의미:
+- `Conditions`에 `sale`, `monthly_rent_max`, `workplace`, `commute_destination`, `preference_text` 추가
+- `ChatRequest.raw_message` 추가
+- `OpenAICompatibleLlmProvider`
+- `OllamaNativeLlmProvider`
+- `SafeLlmProvider`
+- workplace 키워드 기반 업무지구 매핑
+- BE HTTP client의 2회 retry와 backend error 변환
 
-- 현재 프론트는 "대화형 자유 입력"이 아니라 "현재 단계에 맞는 제한 입력" 방식이다.
-- 기획 문서의 MVP v0 가정과는 맞지만, 자연어 입력이나 문장형 입력은 지원하지 않는다.
+### 5.2 대화 정책
 
-제약:
+`ChatService` 기준 현재 흐름:
 
-- `2억`, `20000만원`, `2억 정도`, `월세 원해요` 같은 입력은 실패한다.
-- 숫자 외 문자는 예산으로 인정되지 않는다.
-- `sale`은 프론트 타입 레벨에서도 없다.
-
-### 4.4 메시지 렌더링
-
-현재 실제 화면 렌더는 `bot.text` 중심이다.
-
-구성:
-
-- `MessageList.tsx`: 메시지 목록 + 자동 스크롤 + 대기 인디케이터
-- `MessageBubble.tsx`: 사용자/봇 말풍선 렌더
-- `ChatInput.tsx`: 입력과 전송 버튼
-
-세부 특징:
-
-- 대기 중에는 `생각 중` 인디케이터를 보여준다.
-- 봇/사용자 아바타는 단순 `AI` / `ME` 텍스트 박스다.
-- 사용자 메시지는 오른쪽, 봇 메시지는 왼쪽 정렬이다.
-
-중요한 구현 한계:
-
-- `bot.quick_replies` 타입은 존재하지만 현재 말풍선 렌더에서 사실상 무시된다.
-- `MessageBubble.tsx`는 `bot.text`가 아니면 빈 문자열로 처리하고 렌더하지 않는다.
-- `QuickReplyChips.tsx` 컴포넌트는 존재하지만 `ChatScreen`에 연결되어 있지 않다.
-
-따라서 문서 스키마상 quick reply를 지원하는 것처럼 보이지만, 실제 사용자 경험은 "텍스트 입력 전용 채팅"이다.
-
-### 4.5 Mock/Remote 전환 구조
-
-`frontend/src/api/chat.ts` 기준으로 프론트는 두 가지 채팅 게이트웨이를 가진다.
-
-- `RemoteChatGateway`: 실제 AI 서버 `/chat` 호출
-- `MockChatGateway`: 프론트 내부 mock 서버 사용
-
-환경 변수:
-
-- `VITE_USE_MOCK_CHAT !== "false"` 이면 mock 사용
-- 아니면 `VITE_API_BASE_URL` 기반 원격 호출
-
-현재 `docker-compose.yml` 기본값은 `VITE_USE_MOCK_CHAT=false` 이므로 Docker 실행 시에는 AI 서버를 실제로 호출한다.
-
-### 4.6 프론트 UX 완성도 평가
-
-잘 된 점:
-
-- 채팅 흐름이 단순하고 사용법이 명확하다.
-- 자동 시작, 순차 메시지 출력, 로딩 표시가 있어 데모 완성도가 있다.
-- 테스트로 핵심 대화 흐름이 고정되어 있다.
-
-아쉬운 점:
-
-- 기획 문서에 언급된 칩 중심 입력 UX와 실제 구현이 다르다.
-- 에러 후 재시도 UX가 화면에 노출되지 않는다.
-- 장문의 답변, 카드형 결과, 비교 UI는 없다.
-- 현재 예산 입력 경험이 너무 엄격하다.
-
----
-
-## 5. AI 서버 상세 분석
-
-### 5.1 엔드포인트와 역할
-
-AI 서버는 `ai-server/app/main.py`에서 FastAPI 앱으로 구현되어 있다.
-
-구현된 엔드포인트:
-
-- `GET /healthz`
-- `POST /chat`
-
-추가 동작:
-
-- CORS 허용
-- Pydantic 요청 검증
-- 요청 검증 실패 시 422가 아니라 200 + `"다시 알려주세요."` fallback 응답 반환
-
-이 구조는 "FE는 실패 분기 없이 `bot_messages`만 렌더한다"는 기획 방향과 잘 맞는다.
-
-### 5.2 스키마 설계
-
-`ai-server/app/schemas.py` 기준으로 다음 스키마가 구현되어 있다.
-
-- `Conditions`
-- `ChatRequest`
-- `ChatResponse`
-- `BotTextMessage`
-- `BotQuickRepliesMessage`
-- `UpsertConditionsRequest/Response`
-- `FilterRegionsRequest/Response`
-
-유효성 제약:
-
-- `budget_max`: 양수, 최대 100억
-- `deal_type`: `jeonse` 또는 `monthly_rent`
-
-의미:
-
-- 서버 레벨에서 `sale`을 막고 있다.
-- 프론트 파싱을 우회하는 잘못된 입력도 서버에서 한 번 더 방어한다.
-
-### 5.3 대화 정책
-
-`ai-server/app/services/dialog_policy.py`는 매우 단순한 상태 머신이다.
-
-규칙:
-
-- `budget_max` 없으면 예산 질문
-- `deal_type` 없으면 거래 유형 질문
-- 둘 다 있으면 결과 단계
-
-장점:
-
-- MVP v0 목적에는 충분하다.
-- 예측 가능하고 테스트하기 쉽다.
-
-한계:
-
-- 질문 순서가 고정이다.
-- 추가 슬롯이 생기면 정책 확장이 필요하다.
-- 자유 텍스트 의도 추출은 아직 없다.
-
-### 5.4 조건 머지와 세션 흐름
-
-`ChatService`는 요청을 받으면 먼저 backend client에 `upsert_conditions`를 호출한다.
-
-현재 흐름:
-
-1. FE가 `session_id`와 `raw` 전송
-2. AI 서버가 backend client에 upsert 요청
-3. backend client가 누적 conditions를 반환
-4. AI 서버가 다음 질문 또는 결과를 결정
-5. 필요 시 `filter_regions` 호출
-
-현재 mock backend 기준 세션 저장 방식:
-
-- 메모리 딕셔너리 사용
-- `session_id` 없으면 UUID 생성
-- 이전 조건 + 새 raw를 merge
-
-중요한 점:
-
-- 이 "세션 누적"은 현재 Spring Boot 백엔드가 아니라 `MockBackendClient` 내부에서 처리된다.
-- 따라서 서버 재시작 시 세션이 유지되지 않는다.
-- 여러 인스턴스 환경도 고려되지 않았다.
-
-### 5.5 결과 생성 방식
-
-`ai-server/app/services/message_builder.py`와 `result_formatter.py` 기준으로 결과는 템플릿 문자열이다.
-
-구현된 메시지:
-
-- 첫 질문: 자본금 질문
-- 두 번째 질문: 거래 유형 질문
-- 결과 전 안내: `잠시만요...`
-- 결과 본문: 거래 유형 + 예산 + 지역 목록
-- 빈 결과 문구
-- fallback 문구
-
-예산 포맷:
-
-- 1억 이상은 `2억`, `3.5억` 같은 형식
-- 그 미만은 `6000만원` 형식
-
-이 부분은 기획 문서의 v0 템플릿 요구와 잘 맞는다.
-
-### 5.6 backend client 구성
-
-`ai-server/app/services/backend_client.py`에는 두 가지 구현체가 있다.
-
-- `HttpBackendClient`
-- `MockBackendClient`
-
-`HttpBackendClient` 기능:
-
-- `/internal/upsert-conditions` POST
-- `/internal/filter` POST
-- timeout 적용
-- 최대 2회 재시도
-
-`MockBackendClient` 기능:
-
-- 메모리 세션 저장
-- 조건 merge
-- 예산과 거래 유형에 따라 하드코딩된 지역 반환
-
-현재 더미 추천 규칙:
-
-- `budget_max < 60000000` 이면 빈 결과
-- `deal_type == "jeonse"` 이면 `분당, 성남, 경기도`
-- 나머지는 `봉천동, 신림동, 사당동`
-
-즉, 현재 추천 결과는 데이터 기반 계산이 아니라 규칙 기반 데모 응답이다.
-
-### 5.7 오류 처리와 fallback
-
-구현된 fallback 정책:
-
-- `AI_DUMMY_FAIL=true` 이면 강제 fallback
-- backend client 호출 실패 시 fallback
-- 요청 검증 실패 시 `"다시 알려주세요."`
-
-장점:
-
-- FE는 예외 처리 복잡도를 거의 갖지 않아도 된다.
-- 사용자 경험이 끊기지 않는다.
-
-차이점:
-
-- 프론트 로컬 에러 문구와 AI 서버 fallback 문구가 완전히 같지는 않다.
-- 프론트는 `"잠시 문제가 있어요. 다시 추천을 받아볼까요?"`
-- AI 서버는 `"잠시 문제가 있어요. 다시 입력해주세요."`
-
-문구 정책을 하나로 맞추면 더 깔끔하다.
-
----
-
-## 6. Docker 및 실행 환경 분석
-
-### 6.1 docker-compose 구성
-
-현재 `docker-compose.yml`에는 두 서비스만 있다.
-
-- `frontend`
-- `ai-server`
-
-구현된 내용:
-
-- 프론트는 Vite dev server를 Docker에서 실행
-- AI 서버는 Uvicorn reload 모드로 실행
-- 두 서비스 모두 소스 볼륨 마운트
-- 프론트 `5173`, AI 서버 `8000` 포트 노출
+1. 첫 호출: 자본금 질문
+2. 응답 1회: 거래 유형 질문
+3. 응답 2회: 통근 목적지 질문
+4. 월세인데 `monthly_rent_max`가 없으면 월세 상한 질문
+5. 누적 텍스트가 있으면 LLM을 1회 호출해 조건 추출
+6. 필수 조건을 다시 확인한 뒤 BE 필터 호출
+7. 결과를 텍스트와 칩으로 반환
 
 좋은 점:
 
-- 개발 중 코드 수정 반영이 쉽다.
-- 프론트와 AI 서버를 함께 바로 띄울 수 있다.
+- LLM을 매 턴 호출하지 않고 완료 시점에 1회만 호출한다.
+- 구조화 입력과 자유 텍스트를 함께 다룰 수 있다.
+- LLM 실패는 빈 conditions로 흡수하는 방어막이 있다.
 
-기획 대비 미구현:
+리스크:
 
-- `backend` 서비스 없음
-- `mysql` 서비스 없음
-- `.env.example` 기반 다중 서비스 운영 예시 없음
+- step 관리가 in-memory라 서버 재시작 시 세션 단계가 손실된다.
+- step은 응답 횟수 기반이라, 사용자가 한 문장에 예산/거래유형/직장을 모두 말해도 대화 단계를 압축하지 않는다.
+- BE가 conditions를 저장하지만 AI 서버가 최신 conditions를 DB에서 직접 복원하는 구조는 아니다.
 
-즉, "도커로 프론트+AI 개발 데모"는 가능하지만, "전체 FE+AI+BE+DB 통합 스택"은 아직 아니다.
+## 6. Backend 분석
 
-### 6.2 Dockerfile 상태
+### 6.1 구현된 API
 
-프론트:
+Backend는 Spring Boot 내부 API를 제공한다.
 
-- `frontend/Dockerfile`은 `deps`, `dev`, `build`, `prod` 멀티스테이지
-- dev 모드와 nginx 프로덕션 모드를 모두 고려했다
+| API | 역할 |
+|---|---|
+| `POST /internal/upsert-conditions` | session_id 생성/검증, 최신 conditions 조회, 이번 턴 조건 머지, `chat_messages` 저장 |
+| `POST /internal/filter` | 조건 기반 지역 필터링과 점수 계산 |
+| `GET /healthz` | public health check |
 
-AI 서버:
+조건 검증:
 
-- `ai-server/Dockerfile`은 Python 3.11 slim 기반
-- `pyproject.toml` 설치 후 앱/테스트 복사
+- `budget_max`: 양수 정수, 최대 100억 원
+- `deal_type`: `jeonse`, `monthly_rent`, `sale`
 
-평가:
+### 6.2 DB 모델
 
-- 프론트 Dockerfile은 비교적 잘 정리되어 있다.
-- AI 서버 Dockerfile도 MVP 용도로 충분하다.
-- 다만 전체 시스템 기준으로는 backend/mysql 이미지가 없어 통합 배포 단위는 완성되지 않았다.
+핵심 테이블:
 
----
+- `regions`
+- `housing_transactions`
+- `chat_messages`
+- `region_transit`
+- `region_commute`
+- `region_jeonse_safety`
 
-## 7. 백엔드 구현 상태
+`housing_transactions`는 V3에서 `sale_price_amount`가 추가되어 매매를 지원한다.
 
-### 7.1 현재 상태
+중요한 점:
 
-`backend/src/main/java`에는 현재 `BackendApplication.java`만 있다.
+- V1의 check constraint는 전세/월세만 허용했지만 V3에서 `sale`까지 허용하도록 변경한다.
+- `scripts/load_sale_transactions.py`는 매매 CSV를 `deal_type='sale'`, `sale_price_amount`로 적재하도록 되어 있다.
 
-없는 것:
+### 6.3 필터링/랭킹
 
-- Controller
-- Service
-- Entity
-- Repository
-- DTO
-- 내부 API
-- Health API
-- Security 설정
-- Flyway migration
+`RegionFilterService`는 다음 기준으로 후보를 만든다.
 
-`application.yaml`에는 로컬 MySQL datasource 일부만 있고, 실제 동작 가능한 백엔드 기능은 없다.
+- 전세: `deposit_amount <= budget_max / 10000`
+- 월세: `deposit_amount <= budget_max / 10000` 및 `monthly_rent <= monthly_rent_max / 10000`
+- 매매: `sale_price_amount <= budget_max / 10000`
 
-### 7.2 기획 대비 누락 항목
+점수:
 
-`backend-mvp.md` 기준으로 아직 미구현인 항목은 사실상 대부분이다.
+- 통근 목적지가 없으면 `0.7 * 가격 후보 거래량 점수 + 0.3 * 교통 점수`
+- 통근 목적지가 있으면 `0.5 * 가격 후보 거래량 점수 + 0.3 * 통근 점수 + 0.2 * 교통 점수`
+- 전세는 `region_jeonse_safety`의 등급도 상세 응답에 포함한다.
+- 결과는 최대 5개다.
 
-- `POST /internal/upsert-conditions`
-- `POST /internal/filter`
-- `GET /healthz`
-- `chat_messages` 테이블 및 JSON 컬럼 설계
-- `regions`, `housing_transactions` 엔티티/적재
-- MySQL 시드 적재
-- 정렬 정책
-- CORS/보안 정책
-- Swagger/OpenAPI
-- 글로벌 예외 처리
-- Dockerfile
-- docker-compose 통합
+도메인상 유의할 점:
 
-따라서 현재 저장소에서 "백엔드가 구현되었다"고 보기 어렵다. AI 서버의 `http` 모드는 인터페이스만 준비된 상태다.
+- 거래량이 많을수록 추천 점수가 올라간다. "저렴한 평균가"가 아니라 "예산 이하 거래가 많이 존재하는 지역" 중심이다.
+- 현재 쿼리는 서울특별시로 한정한다.
+- `monthly_rent_max`가 없을 때 월세 필터가 전세 쿼리로 fallback되는 로직이 있는데, AI 흐름상 월세 상한을 묻도록 되어 있어 정상 경로에서는 잘 드러나지 않는다.
 
----
+## 7. Docker/실행 환경 분석
 
-## 8. 문서 대비 구현 매핑
+현재 `docker-compose.yml`은 전체 스택을 포함한다.
 
-### 8.1 plan.md 대비
+서비스:
 
-구현된 것:
+- `frontend`: Vite dev server, `5173`
+- `ai-server`: Uvicorn reload, `8000`
+- `backend`: Spring Boot, `8080`
+- `db`: MySQL 8.4, host port 기본 `3307`
+- `db-seed`: seed SQL import one-shot job
 
-- FE의 유일한 진입점이 AI 서버인 구조
-- 풀스크린 채팅 UI 방향
-- 첫 진입 자동 질문
-- 자본금 -> 거래 유형 -> 결과의 2단계 대화 흐름
-- AI 서버 fallback 흡수 구조
+Makefile도 전체 스택 중심으로 정리되어 있다.
 
-부분 구현:
-
-- `bot_messages` 스키마는 구현했지만 실제 렌더는 `bot.text` 중심
-- quick replies 타입은 있으나 실제 UX로는 미사용
-
-미구현:
-
-- 지역 카드/비교 UI
-- 추가 질문 확장 버전
-- 자유 텍스트 해석
-- 실제 BE/DB 기반 추천
-
-### 8.2 ai-frontend.md 대비
-
-구현된 것:
-
-- FE는 `/chat`만 호출
-- 입력을 단계별 raw로 구조화
-- 정상/실패를 큰 분기 없이 렌더
-- 페이지 로드 시 자동 호출
-
-부분 구현:
-
-- `bot.quick_replies` 타입은 정의됨
-- 하지만 현재 화면 렌더에는 연결되지 않음
-
-미구현:
-
-- 긴 텍스트 QA
-- streaming 수신
-- 카드 타입 확장
-
-### 8.3 ai-backend.md 대비
-
-구현된 것:
-
-- `/chat`, `/healthz`
-- Conditions/ChatResponse 스키마
-- MergeService
-- DialogPolicy
-- ResultFormatter
-- fallback 정책
-- mock backend 모드
-- pytest
-
-부분 구현:
-
-- `HttpBackendClient`는 있으나 실제 BE 미구현으로 실사용 불가
-- logging은 거의 없다
-
-미구현:
-
-- Phase 2 LLM
-- 자연어 의도 추출
-- LLM 응답 검증 체계
-
-### 8.4 backend-mvp.md 대비
-
-구현된 것:
-
-- 사실상 Spring Boot 앱 부트스트랩만 존재
-
-미구현:
-
-- 체크리스트 대부분 전체
-
----
-
-## 9. 테스트 및 검증 결과
-
-실행 일자: 2026-04-25
-
-### 9.1 프론트
-
-실행 명령:
-
+- `make up`
+- `make down`
+- `make logs`
 - `make docker-frontend-check`
+- `make ai-check`
+- `make docker-db-pack`
+- `make docker-db-import`
+- `make docker-db-refresh-from-local`
 
-결과:
+주의할 점:
 
-- eslint 통과
-- vitest 통과
-- build 통과
+- `AI_BACKEND_MODE` 기본값은 `http`다. 예전 README의 "mock backend 모드" 설명은 최신 기본 compose와 다르다.
+- `db-seed`는 `db/seed/seed-data.sql.gz` 또는 `db/seed/seed-data.sql`이 없으면 실패한다.
+- `ai-server`는 `db-seed`의 `service_completed_successfully`를 기다린다. seed 파일이 없으면 AI 서버까지 올라오지 않을 수 있다.
+- 개발 편의성을 위해 "seed 없이 빈 DB로 실행" 모드와 "seed 필수 실행" 모드를 분리하는 편이 좋다.
 
-확인된 테스트 범위:
+## 8. 데이터셋 분석
 
-- `UserInputParser` 숫자/거래유형 파싱
-- `MockChatServer` 대화 플로우
-- `ChatScreen` 렌더 플로우
-- `chipMapper` 테스트
+### 8.1 현재 존재하는 CSV
 
-요약:
+현재 작업 루트에는 아래 CSV가 있다.
 
-- 프론트의 현재 MVP 흐름은 테스트로 고정되어 있다.
-- 다만 quick reply 렌더, 재시도 UI, 실서버 연동 오류 시나리오 등은 충분히 검증되지 않았다.
+| 파일 | 행 수 | 컬럼 수 |
+|---|---:|---:|
+| `files/2015.csv` | 3,364 | 16 |
+| `files/2016.csv` | 4,644 | 18 |
+| `files/2017.csv` | 5,023 | 18 |
+| `files/2018.csv` | 6,053 | 18 |
+| `files/2019.csv` | 6,356 | 18 |
+| `files/2020.csv` | 6,849 | 18 |
+| `files/2021.csv` | 8,564 | 18 |
+| `files/2022.csv` | 10,392 | 18 |
+| `files/2023.csv` | 12,381 | 20 |
+| `files/2024.csv` | 12,436 | 20 |
 
-### 9.2 AI 서버
+총계:
 
-실행 명령:
+- 총 행 수: 76,062
+- 총 수량: 4,926,283
+- 총 합계: 116,913,842,705
 
-- `make docker-ai-check`
+연도별 합계:
 
-결과:
+| 연도 | 행 수 | 합계 |
+|---|---:|---:|
+| 2015 | 3,364 | 4,413,401,610 |
+| 2016 | 4,644 | 3,422,002,137 |
+| 2017 | 5,023 | 6,984,214,420 |
+| 2018 | 6,053 | 8,437,001,008 |
+| 2019 | 6,356 | 9,408,482,776 |
+| 2020 | 6,849 | 9,714,992,866 |
+| 2021 | 8,564 | 14,426,503,162 |
+| 2022 | 10,392 | 17,595,343,894 |
+| 2023 | 12,381 | 22,432,317,242 |
+| 2024 | 12,436 | 20,079,583,590 |
 
-- `ruff check` 통과
-- `pytest` 9개 모두 통과
+### 8.2 데이터 성격
 
-확인된 테스트 범위:
+컬럼은 다음 계열이다.
 
-- `/healthz`
-- `/chat` 기본 흐름
-- 예산+거래유형 동시 입력
-- invalid raw 재질문
-- backend 실패 fallback
-- dummy fail fallback
-- dialog policy
-- merge service
-- result formatter
+- `월`, `날짜`
+- `구분`, `거래처`
+- `제품`, `규격`, `품목`, `사용`, `Type`
+- `수량`, `단가`, `합계`, `공급가액`
+- `팀`, `담당자`
+- `재입고방법`, `출고방법`, `교환,반품 상태`, `최초출고일`, `패널티 적용 금액`, `비고`
 
-요약:
+상위 제품:
 
-- AI 서버의 MVP 로직은 현재 범위 내에서 안정적이다.
-- 다만 실제 Spring Boot 백엔드와의 통합 테스트는 불가능하다.
+- `STENT`: 33,381행
+- `NEURO`: 12,257행
+- `FORCEP`: 7,619행
+- `SNARE`: 6,261행
+- `INJECTOR`: 3,873행
 
----
+상위 거래처:
 
-## 10. 기능별 세부 판정
+- `가온메디칼`: 7,452행
+- `바스코`: 6,662행
+- `포스메디케어`: 4,369행
+- `메디포스`: 4,323행
+- `씨에이치메디텍`: 3,966행
 
-### 10.1 실제로 사용할 수 있는 기능
+### 8.3 Homefit과의 적합성
 
-- 홈 화면 진입 후 자동 첫 질문
-- 숫자 예산 입력
-- 전세/월세 입력
-- 세션 기반 멀티턴 상태 유지
-- 결과 텍스트 출력
-- 빈 결과 처리
-- fallback 처리
-- Docker 기반 개발 실행
-
-### 10.2 코드상 존재하지만 사용자 기능으로는 미완성인 항목
-
-- `bot.quick_replies`
-- `QuickReplyChips` 컴포넌트
-- `restart`, `retry`, `hasError`
-- `HttpBackendClient`
-
-### 10.3 아직 구현되지 않은 핵심 기능
-
-- 실제 백엔드 API
-- 데이터베이스 저장
-- 공공데이터 기반 추천 계산
-- 추천 근거/점수 상세
-- 결과 카드 UI
-- 비교 UI
-- 자유 텍스트 해석
-- LLM 도입
-- 전체 서비스 통합 Docker 스택
-
----
-
-## 11. 현재 구현의 강점
-
-- MVP 범위를 과도하게 넓히지 않고, 대화 흐름 데모를 먼저 완성했다.
-- FE -> AI 단일 진입점 구조가 이미 잡혀 있어 이후 확장 방향이 선명하다.
-- mock backend와 실제 http backend 인터페이스를 분리해 두어 교체 여지가 있다.
-- 프론트와 AI 서버 모두 최소한의 테스트가 확보되어 있다.
-- Docker 기반 개발 진입 장벽이 낮다.
-
----
-
-## 12. 현재 구현의 리스크와 보완 우선순위
-
-### 우선순위 1
-
-실제 Spring Boot 백엔드를 구현해야 한다.
+이 데이터셋은 Homefit의 부동산 추천 DB에 바로 사용할 수 없다.
 
 이유:
 
-- 지금 결과는 추천 엔진이 아니라 더미 규칙 응답이다.
-- 서비스 핵심 가치인 "데이터 기반 지역 추천"이 아직 없다.
+- `regions`에 필요한 `sido`, `sigungu_code`, `sigungu`, `legal_dong_code`, `legal_dong_name`이 없다.
+- `housing_transactions`에 필요한 `deal_type`, `deposit_amount`, `monthly_rent`, `sale_price_amount`, `contract_date`, `rental_area`가 없다.
+- `scripts/load_sale_transactions.py`가 기대하는 국토부 매매 CSV 컬럼과 맞지 않는다.
+- 현재 CSV는 의료기기 또는 제품 거래 데이터에 가깝다.
 
-### 우선순위 2
+따라서 Homefit 데이터로 쓰려면 아래 중 하나가 필요하다.
 
-quick reply UX 방향을 하나로 정해야 한다.
+1. 국토부 아파트 매매/전월세 실거래 CSV를 실제 작업 트리에 추가한다.
+2. 현재 `files/*.csv`는 Homefit과 별도 프로젝트 데이터로 분리한다.
+3. 만약 이 데이터가 Homefit 추천과 연결되어야 한다면 도메인 모델 자체를 다시 정의해야 한다.
 
-선택지는 두 가지다.
+### 8.4 매매 CSV 적재 스크립트 검토
 
-- 현재처럼 텍스트 입력 중심으로 간다
-- 아니면 기획 문서대로 칩 UX를 실제 연결한다
+`scripts/load_sale_transactions.py`는 국토부 아파트 매매 실거래 CSV를 대상으로 한다.
 
-지금은 타입/컴포넌트/문서/실제 UX가 서로 다르다.
+기대 형식:
 
-### 우선순위 3
+- cp949 인코딩
+- 앞 15줄 메타데이터
+- 컬럼 예: `시군구`, `본번`, `부번`, `단지명`, `전용면적(㎡)`, `계약년월`, `계약일`, `거래금액(만원)`, `층`, `건축년도`
 
-프론트 입력 파서를 현실적인 한국어 입력에 맞게 확장해야 한다.
+적재 방식:
 
-예:
+- `시군구`에서 구/동을 분리한다.
+- `regions`의 서울특별시 지역과 매칭한다.
+- 매칭 실패 시 시군구 단위 fallback을 사용한다.
+- `거래금액(만원)`을 `sale_price_amount`에 저장한다.
 
-- `2억`
-- `2억 정도`
-- `월세`
-- `월세 원해요`
+주의점:
 
-### 우선순위 4
+- `regions`가 먼저 seed되어 있어야 한다.
+- 현재 스크립트는 서울특별시 region cache만 조회한다.
+- 중복 적재 방지 로직이 없다. 같은 CSV를 여러 번 실행하면 중복 row가 들어갈 수 있다.
+- `day = min(계약일, 28)`로 처리해 실제 29~31일 계약일이 28일로 축소된다. 날짜 파싱 안정성 목적이라면 문서화가 필요하고, 정확성이 중요하면 실제 월 말일 계산으로 바꾸는 편이 낫다.
 
-에러/재시도/새 대화 UX를 실제 화면에서 제공해야 한다.
+## 9. 문서와 구현의 불일치
 
-현재 관련 로직 일부는 훅에 있지만 UI에는 거의 노출되지 않는다.
+### 9.1 `docs/data/ERD.md`
 
-### 우선순위 5
+현재 ERD 문서는 오래된 내용이 남아 있다.
 
-통합 Docker 구성을 완성해야 한다.
+- `housing_transactions`가 전세/월세만 사용한다고 설명한다.
+- `sale_price_amount`가 빠져 있다.
+- `regions` 컬럼 설명이 실제 V1 마이그레이션보다 단순하다.
+- 현재 구현된 `region_transit`, `region_commute`, `region_jeonse_safety`가 충분히 반영되지 않았다.
 
-- `backend`
-- `mysql`
-- 필요시 migration/seed
+### 9.2 `README.md`
 
-이 단계가 되어야 문서상 전체 아키텍처와 실제 구현이 일치한다.
+README에는 "AI 서버는 mock backend 모드로 `/chat` 응답을 생성"한다고 되어 있지만, 현재 compose 기본값은 `AI_BACKEND_MODE=http`다.
 
----
+LLM 기본값은 OpenRouter 무료 모델 `deepseek/deepseek-v4-flash:free`로 정리됐다.
 
-## 13. 최종 평가
+### 9.3 기존 `research.md`
 
-현재 구현물은 기획 문서의 전체 범위를 모두 구현한 상태는 아니다. 다만 MVP v0의 "프론트 채팅 경험"과 "AI 서버 오케스트레이션 형태"는 잘 잡혀 있고, Docker 기반 실행과 테스트까지 갖춘 데모 단계로는 충분히 의미가 있다.
+기존 research 내용 중 아래는 더 이상 맞지 않는다.
 
-정확한 표현으로는 다음이 가장 적절하다.
+- backend가 사실상 없다는 설명
+- docker-compose에 backend/mysql이 없다는 설명
+- quick replies가 실제 화면에 연결되지 않았다는 설명
+- 서버가 `sale`을 막고 있다는 설명
+- 추천이 mock 규칙 기반이라는 일반화
 
-- 프론트: 구현됨
-- AI 서버: MVP 수준 구현됨
-- Docker: 프론트+AI 개발 환경 구현됨
-- 백엔드: 미구현
-- 실제 추천 엔진: 미구현
+이제 mock client는 남아 있지만 기본 compose 경로는 실제 Backend HTTP 연동이다.
 
-따라서 다음 개발 단계의 핵심은 "현재 데모 아키텍처를 실제 데이터 기반 추천 시스템으로 연결하는 백엔드 완성"이다.
+## 10. 검증 결과
+
+실행한 명령:
+
+```bash
+cd /Users/ian/Documents/koreadeep/help_j/project/homefit/backend
+./gradlew test
+```
+
+결과:
+
+- 7 tests completed
+- 1 failed
+- 실패 테스트: `InternalApiTests > filterReturnsTopThreeRegionsByTransactionCountWithinBudgetInManwon`
+
+원인 분석:
+
+- `RegionFilterService.findJeonseRegions()` 쿼리는 `ht.region.sido = '서울특별시'`로 서울만 조회한다.
+- 실패 테스트는 `분당`, `성남`, `수원`을 `경기도`로 insert하고, 이 3개가 결과로 나오길 기대한다.
+- 현재 API 문서도 추천 지역 범위를 서울 내부로 한정한다고 되어 있다.
+
+판단:
+
+- 구현이 맞고 테스트가 오래된 것인지, 아니면 서울 한정을 풀어야 하는지 정책 결정이 필요하다.
+- `docs/api/API.md` 기준으로는 테스트를 서울 데이터로 고치는 쪽이 일관적이다.
+
+추가로 Frontend/AI 테스트는 이번 리서치 작성 과정에서 실행하지 않았다.
+
+## 11. 우선순위 제안
+
+### P0. 테스트와 정책 불일치 정리
+
+`InternalApiTests.filterReturnsTopThreeRegionsByTransactionCountWithinBudgetInManwon`을 서울 지역 fixture로 수정하거나, 서울 한정 정책을 철회해야 한다.
+
+현재 문서와 repository query 기준으로는 테스트 수정이 맞다.
+
+### P0. seed 없는 compose 실행 경로 정리
+
+현재 `db-seed`가 seed 파일 부재 시 실패한다. 전체 스택을 처음 실행하는 사용자는 여기서 막힐 가능성이 높다.
+
+권장:
+
+- 기본 `make up`: 빈 DB라도 서비스가 뜨도록 구성
+- 별도 `make docker-db-import`: seed 파일 있을 때만 수동 import
+- 또는 `db-seed`가 seed 파일 없을 때 성공 종료하도록 정책 변경
+
+### P1. ERD/API/README 최신화
+
+문서에 반드시 반영할 내용:
+
+- `sale_price_amount`
+- `deal_type=sale`
+- 서울 내부 추천 범위
+- 보조 점수 테이블 3종
+- AI 서버 기본 backend mode
+- LLM provider 기본값
+- seed 파일 요구사항
+
+### P1. 대화 상태 영속화 개선
+
+현재 BE는 conditions를 저장하지만 AI 서버 step은 메모리다.
+
+선택지:
+
+- step을 conditions 또는 chat_messages raw에 저장
+- AI 서버가 latest conditions만 보고 다음 질문을 결정하도록 step 의존을 줄임
+- 자유 텍스트 누적도 DB에 저장해 재시작 후 복원 가능하게 함
+
+### P1. 데이터 적재 파이프라인 보강
+
+매매 CSV 적재는 시작점으로 충분하지만 다음이 필요하다.
+
+- 중복 적재 방지 키
+- 서울 region seed와 CSV 법정동 매칭 검증 리포트
+- skipped row 사유별 집계
+- 실제 29~31일 계약일 보존
+- 전월세 데이터 적재 스크립트와 매매 스크립트의 공통화
+
+### P2. 추천 설명 품질 개선
+
+현재 추천은 점수 계산은 BE에서 하지만 사용자에게 보이는 설명은 지역명/통근/안전 등급 중심이다.
+
+추가하면 좋은 정보:
+
+- 예산 이하 거래 수
+- 대표 거래 가격 범위
+- 통근 목적지 기준 평균 시간
+- 교통 점수
+- 전세 안전 등급 설명
+
+## 12. 목표 방향: 인프라/인구 기반 아파트 추천
+
+사용자가 원하는 최종 형태는 단순한 "어느 구가 괜찮다"가 아니라 "어느 아파트 단지가 조건에 맞다"에 가깝다.
+
+목표 추천 예시는 다음 형태다.
+
+```text
+2억 예산, 매매, 직장 강남, 초등학교 가까운 곳, 유흥시설은 적은 곳, 병원 접근성 좋은 곳
+-> 노원구 A아파트 59㎡
+-> 강북구 B아파트 84㎡
+-> 도봉구 C아파트 59㎡
+```
+
+이 목표를 구현하려면 추천 단위를 아래처럼 바꿔야 한다.
+
+```text
+현재: regions(sigungu) 추천
+목표: apartment_complexes + unit/area band 추천
+```
+
+### 12.1 필요한 데이터 축
+
+| 축 | 필요한 데이터 | 용도 |
+|---|---|---|
+| 아파트 단지 | 단지명, 주소, 좌표, 세대수, 준공연도, 난방, 관리방식, 주차 등 | 추천 대상 master |
+| 실거래 | 매매/전월세 거래금액, 계약월, 면적, 층, 건축연도 | 예산 필터와 가격 안정성 |
+| 학교 | 초/중/고 위치, 학교급, 운영상태 | 학군/자녀 친화 점수 |
+| 병원/약국 | 병원, 의원, 치과, 한의원, 약국 위치와 영업상태 | 의료 접근성 |
+| 체육시설 | 헬스장, 체육도장, 골프연습장, 수영장 등 | 생활 편의 점수 |
+| 유흥/소음 후보 | 유흥주점, 단란주점, 노래연습장, 게임장, 숙박업 등 | 회피/감점 점수 |
+| 인구/연령층 | 행정동 또는 격자 단위 연령대별 인구 | 동네 성향, 가족/청년/고령 친화도 |
+| 교통/통근 | 지하철역, 버스, 업무지구별 소요시간 | 출퇴근 점수 |
+
+### 12.2 공식 데이터 후보
+
+현재 기준으로 우선 검토할 공식 데이터 소스는 다음이다.
+
+| 목적 | 후보 데이터 |
+|---|---|
+| 아파트 단지 master | 공공데이터포털 `국토교통부_공동주택 단지 목록제공 서비스`, `국토교통부_공동주택 기본 정보제공 서비스` |
+| 아파트 실거래 | 공공데이터포털 `국토교통부_아파트 매매 실거래가 자료`, 전월세 실거래가 자료 |
+| 학교 위치 | 공공데이터포털 `전국초중등학교위치표준데이터`, 필요 시 `전국초등학교통학구역표준데이터` |
+| 병원/약국 | 건강보험심사평가원 병의원/약국 현황, 또는 지방행정인허가/표준데이터 약국 데이터 |
+| 유흥시설/체육시설 | LOCALDATA 지방행정인허가데이터개방의 유흥주점/단란주점/노래연습장/체육시설 업소정보 |
+| 상권/편의시설 보강 | 소상공인시장진흥공단 상가(상권)정보 |
+| 연령층/인구 | KOSIS 주민등록인구현황, SGIS 소지역/격자 인구 통계, 서울 한정이면 서울 열린데이터광장 생활인구 |
+
+핵심은 API를 실시간으로 매번 때리는 것이 아니라, 주기적으로 수집해서 내부 DB에 정규화하는 것이다. 추천 요청 시에는 이미 계산된 단지별 feature를 조회해야 응답 시간이 안정된다.
+
+### 12.3 권장 DB 모델
+
+기존 `regions`, `housing_transactions`만으로는 부족하다. 아래 테이블을 추가하는 방향이 적절하다.
+
+```text
+apartment_complexes
+- id
+- kapt_code or external_id
+- name
+- sido
+- sigungu
+- legal_dong_name
+- road_address
+- lat
+- lng
+- household_count
+- built_year
+- parking_count
+- heating_type
+- source
+
+apartment_transactions
+- id
+- complex_id
+- deal_type
+- contract_date
+- area_m2
+- floor_no
+- sale_price_amount
+- deposit_amount
+- monthly_rent
+- source
+
+nearby_facilities
+- id
+- facility_type
+- subtype
+- name
+- road_address
+- lat
+- lng
+- status
+- source
+
+complex_feature_scores
+- complex_id
+- school_count_500m
+- elementary_distance_m
+- hospital_count_1000m
+- pharmacy_count_1000m
+- gym_count_1000m
+- nightlife_count_500m
+- transit_score
+- commute_minutes
+- youth_ratio
+- child_ratio
+- senior_ratio
+- updated_at
+```
+
+운영 관점에서는 `nearby_facilities`를 직접 매번 거리 계산하지 않고, ETL 단계에서 `complex_feature_scores`를 미리 계산하는 편이 낫다.
+
+### 12.4 점수화 방식
+
+단지 추천은 hard filter와 weighted score를 분리해야 한다.
+
+Hard filter:
+
+- 거래 유형: 매매/전세/월세
+- 예산 상한
+- 최소 면적 또는 면적대
+- 서울/경기 등 서비스 범위
+- 최근 거래 존재 여부
+
+Weighted score:
+
+| 점수 | 예시 |
+|---|---|
+| 가격 적합도 | 예산 대비 최근 실거래 중앙값이 낮을수록 가점 |
+| 거래 신뢰도 | 최근 12개월 거래 수가 충분하면 가점 |
+| 통근 | 사용자의 직장 목적지까지 짧을수록 가점 |
+| 학교 | 초등학교 거리/통학구역/중고등학교 수 |
+| 의료 | 병원/약국 접근성 |
+| 생활 | 체육시설/상권/편의시설 |
+| 조용함 | 유흥시설/노래방/숙박업 밀집도 낮을수록 가점 |
+| 동네 성향 | 자녀가 있으면 child_ratio, 1인가구/청년이면 youth_ratio 등 선호와 매칭 |
+
+예시 공식:
+
+```text
+final_score =
+  0.30 * price_score
++ 0.20 * commute_score
++ 0.15 * school_score
++ 0.10 * medical_score
++ 0.10 * lifestyle_score
++ 0.10 * quiet_score
++ 0.05 * demographic_match_score
+```
+
+가중치는 사용자 조건에 따라 달라져야 한다.
+
+- "아이 학교가 중요해요" -> school 가중치 상승
+- "조용한 동네 원해요" -> nightlife 감점 강화
+- "병원 가까운 곳" -> medical 가중치 상승
+- "20-30대 많은 동네" -> youth_ratio 가중치 상승
+
+### 12.5 AI 서버 역할 변경
+
+AI 서버는 추천 점수를 직접 계산하지 않는 편이 좋다.
+
+AI 서버가 해야 할 일:
+
+- 사용자 자연어에서 선호 조건 추출
+- `preference_weights` 생성
+- 결과를 사람이 이해하기 좋은 문장으로 설명
+
+Backend가 해야 할 일:
+
+- 단지/거래/시설/인구 데이터를 조회
+- hard filter 적용
+- weighted score 계산
+- 추천 후보와 점수 근거 반환
+
+추가할 conditions 예시:
+
+```json
+{
+  "budget_max": 700000000,
+  "deal_type": "sale",
+  "workplace": "강남",
+  "commute_destination": "gangnam",
+  "school_importance": "high",
+  "avoid_nightlife": true,
+  "medical_importance": "medium",
+  "gym_importance": "medium",
+  "preferred_age_group": "30_40_family",
+  "min_area_m2": 59
+}
+```
+
+### 12.6 MVP로 자르는 방법
+
+한 번에 모든 데이터를 붙이면 범위가 너무 크다. 추천 순서는 아래가 현실적이다.
+
+1. `apartment_complexes`와 매매 실거래를 먼저 연결한다.
+2. 추천 결과를 `구`가 아니라 `아파트 단지명 + 면적대 + 최근 거래가`로 바꾼다.
+3. 학교/병원/유흥시설 3개만 먼저 거리 기반 feature로 추가한다.
+4. 그 다음 체육시설, 상권, 연령층을 붙인다.
+5. 마지막에 사용자별 가중치 조정과 설명 품질을 개선한다.
+
+최소 MVP 결과 응답:
+
+```json
+{
+  "apartments": [
+    {
+      "complex_name": "상계주공...",
+      "sigungu": "노원구",
+      "legal_dong": "상계동",
+      "area_m2": 59.4,
+      "recent_median_price": 620000000,
+      "score": 82.5,
+      "reasons": [
+        "예산 7억 이하 최근 거래가 있습니다.",
+        "초등학교가 400m 이내입니다.",
+        "반경 500m 유흥시설 밀도가 낮습니다.",
+        "강남 업무지구 통근 점수가 양호합니다."
+      ]
+    }
+  ]
+}
+```
+
+## 13. 현재 상태 한 줄 평가
+
+Homefit은 이제 FE-AI-BE-DB가 실제로 연결되는 통합 MVP 초안까지 왔다. 다음 병목은 기능 부재가 아니라 정책/테스트/데이터/문서의 정합성이다. 특히 서울 한정 정책, seed 실행 방식, 실제 국토부 데이터 파일 확보를 먼저 정리해야 이후 추천 품질 개선이 의미 있게 진행된다.

@@ -39,6 +39,18 @@ public class HousingTransaction {
     @Column(name = "contract_date", nullable = false)
     private LocalDate contractDate;
 
+    @Column(name = "rental_area")
+    private Double rentalArea;
+
+    @Column(name = "floor_no")
+    private Integer floorNo;
+
+    @Column(name = "building_name", length = 255)
+    private String buildingName;
+
+    @Column(name = "built_year")
+    private Integer builtYear;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

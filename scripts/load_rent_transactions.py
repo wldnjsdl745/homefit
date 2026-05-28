@@ -1,18 +1,16 @@
-"""MOLIT 아파트 매매 실거래가 CSV → housing_transactions DB 로딩 스크립트.
+"""MOLIT 아파트 전월세 실거래가 CSV → housing_transactions DB 로딩 스크립트.
 
 사용법:
   pip install pymysql pandas
-  python scripts/load_sale_transactions.py --csv "아파트(매매)_실거래가_20260524170217.csv"
+  python scripts/load_rent_transactions.py --csv "아파트(전월세)_실거래가_20250101.csv"
 
-CSV 형식 (국토부 실거래가 공개시스템 기준):
+CSV 형식 (국토부 실거래가 공개시스템 기준, 전월세):
   - 앞 15줄: 메타데이터 (헤더 전 공지/검색조건)
   - 16번째 줄: 컬럼명
   - 컬럼: NO, 시군구, 번지, 본번, 부번, 단지명, 전용면적(㎡),
-          계약년월, 계약일, 거래금액(만원), 동, 층, 매수자, 매도자,
-          건축년도, 도로명, 해제사유발생일, 거래유형, 중개사소재지, 등기일자
-  - 시군구 예시: "서울특별시 성북구 정릉동"
-  - 계약년월 예시: "202605"  계약일: "22"
-  - 거래금액: "60,000" (만원 단위, 쉼표 포함)
+          계약년월, 계약일, 층, 건축년도, 보증금(만원), 월세(만원),
+          도로명, 계약구분 등
+  - 보증금>0 & 월세=0 → jeonse / 월세>0 → monthly_rent
 """
 
 import argparse
@@ -32,7 +30,7 @@ DB_CONFIG = {
     "charset": "utf8mb4",
 }
 
-METADATA_ROWS = 15  # 실제 컬럼 헤더 앞 메타데이터 줄 수
+METADATA_ROWS = 15
 
 
 def parse_amount(val) -> int | None:
@@ -65,7 +63,6 @@ def parse_float(val) -> float | None:
 def split_address(addr: str) -> tuple[str, str]:
     """'서울특별시 성북구 정릉동' → ('성북구', '정릉동')"""
     parts = str(addr).strip().split()
-    # parts[0]=시도, parts[1]=시군구, parts[2:]=동
     sigungu = parts[1] if len(parts) > 1 else ""
     dong = parts[2] if len(parts) > 2 else ""
     return sigungu, dong
@@ -86,14 +83,25 @@ def load_csv(csv_path: str, db_config: dict, batch_size: int = 1000) -> None:
     conn = pymysql.connect(**db_config)
     cursor = conn.cursor()
 
-    # regions 캐시: (sigungu, dong) → region_id
     cursor.execute("SELECT id, sigungu, legal_dong_name FROM regions WHERE sido='서울특별시'")
     region_cache: dict[tuple, int] = {}
-    sigungu_cache: dict[str, int] = {}  # sigungu만으로 fallback
+    sigungu_cache: dict[str, int] = {}
     for rid, sigungu, dong in cursor.fetchall():
         region_cache[(sigungu.strip(), dong.strip())] = rid
         if sigungu.strip() not in sigungu_cache:
             sigungu_cache[sigungu.strip()] = rid
+
+    # 컬럼명이 다를 수 있어 유연하게 처리
+    deposit_col = next((c for c in df.columns if "보증금" in c), None)
+    rent_col = next((c for c in df.columns if "월세" in c and "종전" not in c), None)
+    area_col = next((c for c in df.columns if "전용면적" in c), None)
+    year_col = next((c for c in df.columns if "건축년도" in c or "건축연도" in c), None)
+
+    if not deposit_col:
+        print(f"[error] 보증금 컬럼을 찾을 수 없어요. 컬럼: {list(df.columns)}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[load] 보증금={deposit_col!r}, 월세={rent_col!r}, 면적={area_col!r}, 건축년도={year_col!r}")
 
     inserted = skipped = 0
     batch: list[tuple] = []
@@ -104,17 +112,22 @@ def load_csv(csv_path: str, db_config: dict, batch_size: int = 1000) -> None:
             skipped += 1
             continue
 
-        amount_manwon = parse_amount(row.get("거래금액(만원)"))
-        if amount_manwon is None:
+        deposit_manwon = parse_amount(row.get(deposit_col))
+        if deposit_manwon is None:
             skipped += 1
             continue
+
+        monthly_rent_manwon = parse_amount(row.get(rent_col)) if rent_col else None
+        if monthly_rent_manwon is None:
+            monthly_rent_manwon = 0
+
+        deal_type = "monthly_rent" if monthly_rent_manwon > 0 else "jeonse"
 
         region_id = region_cache.get((sigungu, dong)) or sigungu_cache.get(sigungu)
         if region_id is None:
             skipped += 1
             continue
 
-        # 계약년월: "202605" → year=2026, month=05
         yyyymm = str(row.get("계약년월", "")).strip()
         try:
             year = int(yyyymm[:4])
@@ -125,17 +138,19 @@ def load_csv(csv_path: str, db_config: dict, batch_size: int = 1000) -> None:
             skipped += 1
             continue
 
+        building_name = str(row.get("단지명", "")).strip() or None
+
         batch.append((
             region_id,
-            "sale",
-            None,          # deposit_amount (매매는 null)
-            amount_manwon, # sale_price_amount
-            None,          # monthly_rent
+            deal_type,
+            deposit_manwon,
+            None,               # sale_price_amount (전월세는 null)
+            monthly_rent_manwon if monthly_rent_manwon > 0 else None,
             contract_date,
-            parse_float(row.get("전용면적(㎡)")),
+            parse_float(row.get(area_col)) if area_col else None,
             parse_int(row.get("층")),
-            str(row.get("단지명", "")).strip() or None,
-            parse_int(row.get("건축년도")),
+            building_name,
+            parse_int(row.get(year_col)) if year_col else None,
             str(row.get("본번", "")).strip() or None,
             str(row.get("부번", "")).strip() or None,
         ))
@@ -171,7 +186,7 @@ def _insert_batch(cursor, batch: list[tuple]) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MOLIT 매매 CSV → DB 로딩")
+    parser = argparse.ArgumentParser(description="MOLIT 전월세 CSV → DB 로딩")
     parser.add_argument("--csv", required=True, help="MOLIT 다운로드 CSV 파일 경로")
     parser.add_argument("--host", default=DB_CONFIG["host"])
     parser.add_argument("--port", type=int, default=DB_CONFIG["port"])

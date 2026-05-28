@@ -26,6 +26,14 @@ db/seed/seed-data.sql.gz
 
 덤프 파일에는 Backend가 사용하는 테이블 구조와 초기 데이터가 함께 포함되어야 한다.
 
+아파트 단지 추천 기능까지 사용하려면 아래 테이블 데이터도 포함하는 것이 좋다.
+
+- `apartment_complexes`
+- `apartment_transactions`
+- `nearby_facilities`
+- `neighborhood_demographics`
+- `complex_feature_scores`
+
 Docker MySQL 볼륨이 비어 있는 상태에서 `docker compose up frontend ai-server`를 실행하면 `db-seed`가 이 시드 파일을 한 번만 import한다.
 
 이미 Docker DB에 `housing_transactions` 데이터가 있으면 import는 자동으로 건너뛴다.
@@ -71,12 +79,27 @@ make rds-count \
   RDS_DATABASE=homefit
 ```
 
+## 공모전/추천 데이터 적재
+
+공공데이터포털, 국토교통부 데이터 통합채널, LOCALDATA, KOSIS/SGIS 등에서 내려받은 CSV는 아래 스크립트로 적재한다.
+
+```sh
+python scripts/load_recommendation_data.py complexes --csv data/raw/kapt_complexes.csv
+python scripts/load_recommendation_data.py facilities --type school --csv data/raw/schools.csv --source-key school_location
+python scripts/load_recommendation_data.py facilities --type nightlife --csv data/raw/localdata_nightlife.csv --source-key localdata_license
+python scripts/load_recommendation_data.py demographics --csv data/raw/population_by_age.csv --source-key kosis_population
+python scripts/load_recommendation_data.py features
+```
+
 주의:
 
 - Backend는 DB schema 변경 작업을 실행하지 않는다.
 - RDS import 전에는 dump SQL에 필요한 테이블 구조가 포함되어 있는지 확인한다.
 - seed SQL에 `truncate` 또는 `delete`가 포함되어 있으면 기존 RDS 데이터가 삭제될 수 있다.
 - 운영 데이터가 쌓인 뒤에는 import 전에 백업을 확인한다.
+- `LOCALDATA` 일부 CSV의 `좌표정보(x/y)`는 WGS84 위경도가 아니라 TM 좌표일 수 있다. 현재 스크립트는 WGS84 위도/경도 컬럼만 거리 계산에 사용한다.
+- API 키나 자료신청이 필요한 데이터는 포털에서 먼저 내려받은 뒤 `data/raw/`에 둔다.
+- 단지별 추천에는 `apartment_complexes.lat/lng`와 `nearby_facilities.lat/lng`가 있어야 한다.
 
 ## 로컬 MySQL 기준으로 Docker DB 새로고침
 
