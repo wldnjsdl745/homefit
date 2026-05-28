@@ -142,9 +142,17 @@ class ChatService:
             turn_raw = request.raw
 
             if request.raw_message:
-                extracted = await self._extract_from_text(request.raw_message)
-                merged = self.merge_service.merge(merged, extracted)
-                turn_raw = self.merge_service.merge(turn_raw, extracted)
+                local_extracted = self._extract_locally(request.raw_message)
+                merged = self.merge_service.merge(merged, local_extracted)
+                turn_raw = self.merge_service.merge(turn_raw, local_extracted)
+
+                # 이미 FE 구조화 입력이나 로컬 규칙으로 이번 턴 조건을 얻었다면
+                # 외부 LLM 호출을 건너뛴다. 단순 숫자/칩 입력이 OpenRouter 지연으로
+                # 504를 만드는 것을 막기 위한 경로다.
+                if not self._has_condition_values(turn_raw):
+                    llm_extracted = await self.llm_provider.extract_conditions(request.raw_message)
+                    merged = self.merge_service.merge(merged, llm_extracted)
+                    turn_raw = self.merge_service.merge(turn_raw, llm_extracted)
 
                 contextual = self._contextual_no_preference(request.raw_message, merged)
                 merged = self.merge_service.merge(merged, contextual)
@@ -242,6 +250,9 @@ class ChatService:
         llm = await self.llm_provider.extract_conditions(raw_message)
         # 로컬 규칙은 금액/거래유형/자주 쓰는 키워드의 결정론적 보정용이다.
         return self.merge_service.merge(llm, local)
+
+    def _has_condition_values(self, conditions: Conditions) -> bool:
+        return bool(conditions.model_dump(exclude_none=True))
 
     def _resolve_derived_fields(self, conditions: Conditions) -> Conditions:
         if conditions.workplace and conditions.commute_destination is None:
