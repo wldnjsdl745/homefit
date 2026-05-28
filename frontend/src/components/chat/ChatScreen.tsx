@@ -3,7 +3,7 @@ import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
 
 export function ChatScreen() {
-  const { messages, isWaiting, submitText } = useChat();
+  const { messages, isWaiting, submitText, submitChip } = useChat();
 
   return (
     <main className="min-h-screen bg-paper text-ink">
@@ -38,7 +38,7 @@ export function ChatScreen() {
               </span>
             </div>
             <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">
-              <MessageList messages={messages} isWaiting={isWaiting} />
+              <MessageList messages={messages} isWaiting={isWaiting} onChipClick={submitChip} />
               <ChatInput disabled={isWaiting} onSubmit={submitText} />
             </div>
           </div>

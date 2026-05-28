@@ -39,6 +39,7 @@ class InternalApiTests {
     @BeforeEach
     void setUp() {
         chatMessageRepository.deleteAll();
+        jdbcTemplate.update("delete from nearby_facilities");
         jdbcTemplate.update("delete from housing_transactions");
         jdbcTemplate.update("delete from regions");
     }
@@ -94,17 +95,17 @@ class InternalApiTests {
     }
 
     @Test
-    void filterReturnsTopThreeRegionsByTransactionCountWithinBudgetInManwon() throws Exception {
-        long bundang = insertRegion("경기도", "41135", "분당", "001", "정자동");
-        long seongnam = insertRegion("경기도", "41131", "성남", "002", "태평동");
-        long suwon = insertRegion("경기도", "41111", "수원", "003", "매탄동");
-        long yongsan = insertRegion("서울특별시", "11170", "용산", "004", "한남동");
+    void filterReturnsTopThreeSeoulApartmentRegionsWithinBudgetInManwon() throws Exception {
+        long mapo = insertRegion("서울특별시", "11440", "마포구", "001", "공덕동");
+        long seongdong = insertRegion("서울특별시", "11200", "성동구", "002", "옥수동");
+        long gwangjin = insertRegion("서울특별시", "11215", "광진구", "003", "자양동");
+        long yongsan = insertRegion("서울특별시", "11170", "용산구", "004", "한남동");
 
-        insertTransactions(bundang, "jeonse", 10_000L, 3);
-        insertTransactions(seongnam, "jeonse", 15_000L, 2);
-        insertTransactions(suwon, "jeonse", 18_000L, 1);
-        insertTransactions(yongsan, "jeonse", 90_000L, 5);
-        insertTransactions(bundang, "monthly_rent", 5_000L, 5);
+        insertTransactions(mapo, "jeonse", 10_000L, "마포래미안", 3);
+        insertTransactions(seongdong, "jeonse", 15_000L, "옥수파크힐스", 2);
+        insertTransactions(gwangjin, "jeonse", 18_000L, "자양현대", 1);
+        insertTransactions(yongsan, "jeonse", 90_000L, "한남더힐", 5);
+        insertTransactions(mapo, "monthly_rent", 5_000L, "마포래미안", 5);
 
         mockMvc.perform(post("/internal/filter")
                         .contentType(APPLICATION_JSON)
@@ -118,20 +119,22 @@ class InternalApiTests {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.regions", hasSize(3)))
-                .andExpect(jsonPath("$.regions[0]").value("분당"))
-                .andExpect(jsonPath("$.regions[1]").value("성남"))
-                .andExpect(jsonPath("$.regions[2]").value("수원"));
+                .andExpect(jsonPath("$.regions[0]").value("마포구"))
+                .andExpect(jsonPath("$.regions[1]").value("성동구"))
+                .andExpect(jsonPath("$.regions[2]").value("광진구"))
+                .andExpect(jsonPath("$.apartments", hasSize(3)))
+                .andExpect(jsonPath("$.apartments[0].name").value("마포래미안"));
     }
 
     @Test
     void filterSaleUsesSalePriceAmountWithinBudgetInManwon() throws Exception {
-        long gangnam = insertRegion("서울특별시", "11680", "강남", "001", "역삼동");
-        long mapo = insertRegion("서울특별시", "11440", "마포", "002", "공덕동");
-        long yongsan = insertRegion("서울특별시", "11170", "용산", "003", "한남동");
+        long gangnam = insertRegion("서울특별시", "11680", "강남구", "001", "역삼동");
+        long mapo = insertRegion("서울특별시", "11440", "마포구", "002", "공덕동");
+        long yongsan = insertRegion("서울특별시", "11170", "용산구", "003", "한남동");
 
-        insertSaleTransactions(gangnam, 15_000L, 3);
-        insertSaleTransactions(mapo, 18_000L, 2);
-        insertSaleTransactions(yongsan, 90_000L, 5);
+        insertSaleTransactions(gangnam, 15_000L, "역삼래미안", 3);
+        insertSaleTransactions(mapo, 18_000L, "공덕자이", 2);
+        insertSaleTransactions(yongsan, 90_000L, "한남더힐", 5);
 
         mockMvc.perform(post("/internal/filter")
                         .contentType(APPLICATION_JSON)
@@ -145,8 +148,39 @@ class InternalApiTests {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.regions", hasSize(2)))
-                .andExpect(jsonPath("$.regions[0]").value("강남"))
-                .andExpect(jsonPath("$.regions[1]").value("마포"));
+                .andExpect(jsonPath("$.regions[0]").value("강남구"))
+                .andExpect(jsonPath("$.regions[1]").value("마포구"))
+                .andExpect(jsonPath("$.apartments", hasSize(2)))
+                .andExpect(jsonPath("$.apartments[0].name").value("역삼래미안"));
+    }
+
+    @Test
+    void filterFallsBackToLegalDongWhenBuildingNameIsMissing() throws Exception {
+        long mapo = insertRegion("서울특별시", "11440", "마포구", "001", "공덕동");
+        long seongdong = insertRegion("서울특별시", "11200", "성동구", "002", "옥수동");
+        long yongsan = insertRegion("서울특별시", "11170", "용산구", "003", "한남동");
+
+        insertTransactionsWithoutBuildingName(mapo, "jeonse", 10_000L, 3);
+        insertTransactionsWithoutBuildingName(seongdong, "jeonse", 15_000L, 2);
+        insertTransactionsWithoutBuildingName(yongsan, "jeonse", 90_000L, 5);
+        insertFacility("school", "마포구", null, "마포구 전체 학교");
+
+        mockMvc.perform(post("/internal/filter")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "conditions": {
+                                    "budget_max": 200000000,
+                                    "deal_type": "jeonse"
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regions", hasSize(2)))
+                .andExpect(jsonPath("$.apartments", hasSize(2)))
+                .andExpect(jsonPath("$.apartments[0].name").doesNotExist())
+                .andExpect(jsonPath("$.apartments[0].infrastructure_summary")
+                        .value("인프라(마포구 전체): 학교 1, 의료 0, 운동시설 0, 유흥시설 0, 교통 0"));
     }
 
     @Test
@@ -196,7 +230,53 @@ class InternalApiTests {
         return jdbcTemplate.queryForObject("select max(id) from regions", Long.class);
     }
 
-    private void insertTransactions(long regionId, String dealType, long depositAmount, int count) {
+    private void insertTransactions(
+            long regionId,
+            String dealType,
+            long depositAmount,
+            String buildingName,
+            int count
+    ) {
+        for (int i = 0; i < count; i++) {
+	            jdbcTemplate.update("""
+	                            insert into housing_transactions (
+	                              region_id, deal_type, deposit_amount, monthly_rent, contract_date,
+	                              building_name, rental_area, built_year, created_at
+	                            )
+	                            values (?, ?, ?, null, date '2026-04-25', ?, 59.40, 2015,
+	                                    timestamp '2026-05-25 00:00:00')
+	                            """,
+	                    regionId,
+	                    dealType,
+                    depositAmount,
+                    buildingName
+            );
+        }
+    }
+
+    private void insertSaleTransactions(long regionId, long salePriceAmount, String buildingName, int count) {
+        for (int i = 0; i < count; i++) {
+	            jdbcTemplate.update("""
+	                            insert into housing_transactions (
+	                              region_id, deal_type, sale_price_amount, deposit_amount, monthly_rent, contract_date,
+	                              building_name, rental_area, built_year, created_at
+	                            )
+	                            values (?, 'sale', ?, null, null, date '2026-04-25', ?, 84.90, 2018,
+	                                    timestamp '2026-05-25 00:00:00')
+	                            """,
+	                    regionId,
+	                    salePriceAmount,
+                    buildingName
+            );
+        }
+    }
+
+    private void insertTransactionsWithoutBuildingName(
+            long regionId,
+            String dealType,
+            long depositAmount,
+            int count
+    ) {
         for (int i = 0; i < count; i++) {
             jdbcTemplate.update("""
                             insert into housing_transactions (
@@ -223,5 +303,22 @@ class InternalApiTests {
                     salePriceAmount
             );
         }
+    }
+
+	    private void insertFacility(String facilityType, String sigungu, String legalDongName, String name) {
+	        jdbcTemplate.update("""
+	                        insert into nearby_facilities (
+	                          source_key, facility_type, name, sido, sigungu, legal_dong_name,
+	                          created_at, updated_at
+	                        )
+	                        values ('test', ?, ?, '서울특별시', ?, ?,
+	                                timestamp '2026-05-25 00:00:00',
+	                                timestamp '2026-05-25 00:00:00')
+	                        """,
+	                facilityType,
+	                name,
+                sigungu,
+                legalDongName
+        );
     }
 }

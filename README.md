@@ -253,19 +253,17 @@ AI 서버만 실행합니다.
 make ai-up
 ```
 
-Qwen 모델 런타임은 별도 compose 파일로 실행합니다. 기본 모델은 `Qwen/Qwen3.5-2B`이며 OpenAI-compatible API를 제공합니다.
+AI 서버는 기본적으로 OpenRouter의 무료 OpenAI-compatible 모델을 사용합니다.
 
 ```bash
-make llm-up
+AI_PROVIDER=openai_compatible
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=deepseek/deepseek-v4-flash:free
 ```
 
-모델 캐시 확인 또는 다운로드:
+OpenRouter API 키는 `.env`의 `OPENAI_API_KEY`에 넣습니다.
 
-```bash
-make llm-model-check
-```
-
-Qwen provider를 AI 서버에서 의미 추출용으로 사용하려면 아래 환경변수를 설정합니다.
+로컬 Qwen 런타임을 쓰려면 아래처럼 바꿉니다.
 
 ```bash
 AI_PROVIDER=qwen

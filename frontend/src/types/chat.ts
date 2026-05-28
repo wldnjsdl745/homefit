@@ -1,10 +1,22 @@
 export type DealType = "monthly_rent" | "jeonse" | "sale";
+export type AgeGroup = "young_adult" | "family" | "senior" | "any";
+export type InfrastructurePriority =
+  | "school"
+  | "medical"
+  | "fitness"
+  | "quiet"
+  | "transit"
+  | "nightlife";
 
 export type Conditions = {
   budget_max?: number;
   deal_type?: DealType;
   monthly_rent_max?: number;
+  preferred_region?: string;
+  workplace?: string;
   preference_text?: string;
+  age_group?: AgeGroup;
+  infrastructure_priorities?: InfrastructurePriority[];
 };
 
 export type ChatRequest = {
@@ -28,11 +40,6 @@ export type ChatResponse = {
   session_id: string;
   state: ChatState;
   bot_messages: BotMessage[];
-  error?: {
-    code: string;
-    message: string;
-    detail: string;
-  } | null;
 };
 
 export type ChatMessage =

@@ -5,9 +5,10 @@ import { MessageBubble } from "./MessageBubble";
 type MessageListProps = {
   messages: ChatMessage[];
   isWaiting: boolean;
+  onChipClick: (chipId: string) => void;
 };
 
-export function MessageList({ messages, isWaiting }: MessageListProps) {
+export function MessageList({ messages, isWaiting, onChipClick }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -17,8 +18,13 @@ export function MessageList({ messages, isWaiting }: MessageListProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col py-5 sm:py-6">
       <div className="flex-1 space-y-4 overflow-y-auto pr-1" aria-live="polite">
-        {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+        {messages.map((message, index) => (
+          <MessageBubble
+            key={message.id}
+            message={message}
+            onChipClick={onChipClick}
+            chipsDisabled={isWaiting || index < messages.length - 1}
+          />
         ))}
 
         {isWaiting ? (

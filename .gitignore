@@ -22,3 +22,4 @@ frontend/vitest.config.js
 *.sql
 *.sql.gz
 !backend/src/main/resources/db/migration/*.sql
+*.csv

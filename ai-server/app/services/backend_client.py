@@ -5,6 +5,7 @@ import httpx
 from pydantic import ValidationError
 
 from app.schemas import (
+    ApartmentDetail,
     Conditions,
     ErrorResponse,
     FilterRegionsRequest,
@@ -91,8 +92,22 @@ class HttpBackendClient(BackendClient):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     response = await client.post(f"{self.base_url}{path}", json=payload)
+                    if response.status_code >= 400:
+                        try:
+                            body = response.json()
+                            raise BackendClientError(
+                                ErrorResponse(
+                                    code=body.get("code", "AI-BE-001"),
+                                    message=body.get("message", "Backend 오류가 발생했어요."),
+                                    detail=body.get("detail", str(response.status_code)),
+                                )
+                            )
+                        except (KeyError, ValueError):
+                            pass
                     response.raise_for_status()
                     return response
+            except BackendClientError:
+                raise
             except httpx.HTTPStatusError as error:
                 raise self._to_status_error(path, error) from error
             except httpx.HTTPError as error:
@@ -161,15 +176,95 @@ class MockBackendClient(BackendClient):
 
     async def filter_regions(self, conditions: Conditions) -> FilterRegionsResponse:
         if conditions.budget_max is not None and conditions.budget_max < 60_000_000:
-            return FilterRegionsResponse(regions=[])
+            return FilterRegionsResponse(regions=[], region_details=[], apartments=[])
+
+        dest = conditions.commute_destination
+        commute_minutes = 20 if dest else None
 
         if conditions.deal_type == "jeonse":
-            return FilterRegionsResponse(regions=["마포구", "은평구", "서대문구"])
+            apts = [
+                ApartmentDetail(
+                    sigungu="마포구",
+                    dong="합정동",
+                    name="마포 한강 자이",
+                    avg_price_manwon=50_000,
+                    avg_area_sqm=59.0,
+                    built_year=2018,
+                    commute_minutes=commute_minutes,
+                ),
+                ApartmentDetail(
+                    sigungu="성동구",
+                    dong="성수동",
+                    name="서울숲 리버뷰",
+                    avg_price_manwon=55_000,
+                    avg_area_sqm=84.0,
+                    built_year=2021,
+                    commute_minutes=commute_minutes,
+                ),
+                ApartmentDetail(
+                    sigungu="광진구",
+                    dong="구의동",
+                    name="광진 e편한세상",
+                    avg_price_manwon=45_000,
+                    avg_area_sqm=59.0,
+                    built_year=2016,
+                    commute_minutes=commute_minutes,
+                ),
+            ]
+        elif conditions.deal_type == "monthly_rent":
+            apts = [
+                ApartmentDetail(
+                    sigungu="관악구",
+                    dong="신림동",
+                    name="관악 두산위브",
+                    avg_price_manwon=5_000,
+                    avg_area_sqm=45.0,
+                    built_year=2010,
+                    commute_minutes=commute_minutes,
+                ),
+                ApartmentDetail(
+                    sigungu="동작구",
+                    dong="사당동",
+                    name="사당 래미안",
+                    avg_price_manwon=6_000,
+                    avg_area_sqm=59.0,
+                    built_year=2014,
+                    commute_minutes=commute_minutes,
+                ),
+            ]
+        elif conditions.deal_type == "sale":
+            apts = [
+                ApartmentDetail(
+                    sigungu="노원구",
+                    dong="상계동",
+                    name="상계주공9단지",
+                    avg_price_manwon=45_000,
+                    avg_area_sqm=59.0,
+                    built_year=1991,
+                    commute_minutes=commute_minutes,
+                ),
+                ApartmentDetail(
+                    sigungu="도봉구",
+                    dong="창동",
+                    name="창동 주공19단지",
+                    avg_price_manwon=40_000,
+                    avg_area_sqm=49.0,
+                    built_year=1993,
+                    commute_minutes=commute_minutes,
+                ),
+            ]
+        else:
+            apts = [
+                ApartmentDetail(
+                    sigungu="마포구",
+                    dong="공덕동",
+                    name="공덕 SK리더스뷰",
+                    avg_price_manwon=52_000,
+                    avg_area_sqm=59.0,
+                    built_year=2015,
+                    commute_minutes=commute_minutes,
+                ),
+            ]
 
-        if conditions.deal_type == "monthly_rent":
-            return FilterRegionsResponse(regions=["관악구", "동작구", "영등포구"])
-
-        if conditions.deal_type == "sale":
-            return FilterRegionsResponse(regions=["노원구", "도봉구", "강북구"])
-
-        return FilterRegionsResponse(regions=["마포구", "은평구", "서대문구"])
+        regions = list({a.sigungu for a in apts})
+        return FilterRegionsResponse(regions=regions, region_details=[], apartments=apts)
