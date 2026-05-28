@@ -7,7 +7,6 @@ describe("UserInputParser", () => {
 
     expect(parser.parse({}, "200000000")).toEqual({
       raw: { budget_max: 200000000 },
-      raw_message: "200000000",
     });
   });
 
@@ -16,15 +15,12 @@ describe("UserInputParser", () => {
 
     expect(parser.parse({ budget_max: 200000000 }, "전세")).toEqual({
       raw: { deal_type: "jeonse" },
-      raw_message: "전세",
     });
     expect(parser.parse({ budget_max: 200000000 }, "월세")).toEqual({
       raw: { deal_type: "monthly_rent" },
-      raw_message: "월세",
     });
     expect(parser.parse({ budget_max: 200000000 }, "매매")).toEqual({
       raw: { deal_type: "sale" },
-      raw_message: "매매",
     });
   });
 
@@ -32,7 +28,7 @@ describe("UserInputParser", () => {
     const parser = new UserInputParser();
 
     expect(parser.parse({}, "2억 정도 있어요")).toEqual({
-      raw: {},
+      raw: { budget_max: 200000000 },
       raw_message: "2억 정도 있어요",
     });
   });
@@ -41,7 +37,10 @@ describe("UserInputParser", () => {
     const parser = new UserInputParser();
 
     expect(
-      parser.parse({ budget_max: 200000000, deal_type: "jeonse" }, "역 가까운 곳"),
+      parser.parse(
+        { budget_max: 200000000, deal_type: "jeonse", workplace: "상관없음" },
+        "역 가까운 곳",
+      ),
     ).toEqual({
       raw: { preference_text: "역 가까운 곳" },
       raw_message: "역 가까운 곳",
