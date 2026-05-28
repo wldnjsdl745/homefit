@@ -164,7 +164,10 @@ class ChatService:
 
             # 3) 세션 상태 초기화/조회 (sid 기준)
             state = self._session_state.setdefault(sid, _SessionState())
-            state.conditions = upserted.conditions  # BE 반환값을 truth로
+            # BE 응답을 기본 truth로 삼되, 이번 턴에서 AI 서버가 이미 검증한
+            # 조건을 다시 얹는다. 운영에서 BE 응답/이전 세션 상태가 일부 키를
+            # 누락해도 현재 턴의 명시 입력이 대화 단계에서 사라지지 않게 한다.
+            state.conditions = self.merge_service.merge(upserted.conditions, turn_raw)
             state.messages = prior.messages
 
             # 4) 누락된 조건만 이어서 질문한다. 이미 충분하면 즉시 결과를 반환한다.
