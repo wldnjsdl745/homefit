@@ -23,6 +23,22 @@ class FailingBackendClient(BackendClient):
         raise ValueError("backend failed")
 
 
+class DroppingBackendClient(BackendClient):
+    async def upsert_conditions(
+        self,
+        session_id: str | None,
+        raw: Conditions,
+        conditions: Conditions,
+    ) -> UpsertConditionsResponse:
+        return UpsertConditionsResponse(
+            session_id=session_id or "11111111-1111-1111-1111-111111111111",
+            conditions=Conditions(budget_max=conditions.budget_max),
+        )
+
+    async def filter_regions(self, conditions: Conditions) -> FilterRegionsResponse:
+        return FilterRegionsResponse(regions=[], region_details=[], apartments=[])
+
+
 class ScenarioLlmProvider:
     def __init__(self) -> None:
         self.calls: list[str] = []
@@ -65,6 +81,24 @@ async def test_chat_service_returns_fallback_when_dummy_fail_enabled() -> None:
 
     assert response.state == "asking"
     assert "AI-SYS-001" in response.bot_messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_chat_service_preserves_current_turn_conditions_when_backend_response_omits_them() -> None:
+    service = ChatService(
+        backend_client=DroppingBackendClient(),
+        settings=Settings(AI_BACKEND_MODE="mock"),
+    )
+
+    response = await service.handle(
+        ChatRequest(
+            session_id=None,
+            raw=Conditions(budget_max=200_000_000, deal_type="jeonse"),
+        )
+    )
+
+    assert response.state == "asking"
+    assert "희망하는 지역" in response.bot_messages[0].content
 
 
 @pytest.mark.asyncio
