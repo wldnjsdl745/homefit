@@ -33,6 +33,9 @@ export class UserInputParser {
   private parseBudgetTurn(input: string): ParsedUserInput {
     const amount = this.parseKoreanAmount(input);
     if (amount !== null) {
+      if (/^\d+$/.test(input)) {
+        return { raw: { budget_max: amount } };
+      }
       return { raw: { budget_max: amount }, raw_message: input };
     }
     return { raw: {}, raw_message: input };
@@ -61,7 +64,7 @@ export class UserInputParser {
   private parseMonthlyRentTurn(input: string): ParsedUserInput {
     const amount = this.parseKoreanAmount(input);
     if (amount !== null) {
-      return { raw: { monthly_rent_max: amount }, raw_message: input };
+      return { raw: { monthly_rent_max: amount } };
     }
     return { raw: {}, raw_message: input };
   }
@@ -69,13 +72,13 @@ export class UserInputParser {
   private parseDealTypeTurn(input: string): ParsedUserInput {
     // 월세가 포함되면 우선 월세 (전세보다 먼저 체크 — "전세 말고 월세" 대응)
     if (input.includes("월세")) {
-      return { raw: { deal_type: "monthly_rent" }, raw_message: input };
+      return { raw: { deal_type: "monthly_rent" } };
     }
     if (input.includes("전세")) {
-      return { raw: { deal_type: "jeonse" }, raw_message: input };
+      return { raw: { deal_type: "jeonse" } };
     }
     if (input.includes("매매") || input.includes("구매") || input.includes("분양")) {
-      return { raw: { deal_type: "sale" }, raw_message: input };
+      return { raw: { deal_type: "sale" } };
     }
     return { raw: {}, raw_message: input };
   }

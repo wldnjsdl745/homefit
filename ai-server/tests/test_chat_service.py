@@ -57,6 +57,15 @@ class ScenarioLlmProvider:
         )
 
 
+class TrackingLlmProvider:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def extract_conditions(self, raw_message: str) -> Conditions:
+        self.calls.append(raw_message)
+        return Conditions()
+
+
 @pytest.mark.asyncio
 async def test_chat_service_returns_fallback_when_backend_fails() -> None:
     service = ChatService(
@@ -99,6 +108,30 @@ async def test_chat_service_preserves_current_turn_conditions_when_backend_respo
 
     assert response.state == "asking"
     assert "희망하는 지역" in response.bot_messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_chat_service_skips_llm_when_structured_budget_is_present() -> None:
+    from app.services.backend_client import MockBackendClient
+
+    llm = TrackingLlmProvider()
+    service = ChatService(
+        backend_client=MockBackendClient(),
+        settings=Settings(AI_BACKEND_MODE="mock"),
+        llm_provider=llm,
+    )
+
+    response = await service.handle(
+        ChatRequest(
+            session_id=None,
+            raw=Conditions(budget_max=100_000),
+            raw_message="100000",
+        )
+    )
+
+    assert response.state == "asking"
+    assert "거래" in response.bot_messages[0].content
+    assert llm.calls == []
 
 
 @pytest.mark.asyncio
