@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ai_provider: str = Field(default="dummy", alias="AI_PROVIDER")
     dummy_fail: bool = Field(default=False, alias="AI_DUMMY_FAIL")
     timeout_ms: int = Field(default=5000, alias="AI_TIMEOUT_MS")
+    backend_filter_timeout_ms: int = Field(default=30000, alias="AI_BACKEND_FILTER_TIMEOUT_MS")
     llm_base_url: str = Field(default="http://llm-runtime:11434/v1", alias="OPENAI_BASE_URL")
     llm_api_key: str = Field(default="EMPTY", alias="OPENAI_API_KEY")
     llm_model: str = Field(default="qwen3.5:4b", alias="OPENAI_MODEL")

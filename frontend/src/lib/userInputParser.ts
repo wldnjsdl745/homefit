@@ -14,14 +14,18 @@ export class UserInputParser {
       return this.parseDealTypeTurn(normalized);
     }
 
-    // 출퇴근 단계: workplace가 아직 없으면 그대로 담아 전송 (AI 서버가 매핑)
-    if (current.workplace === undefined) {
-      return { raw: { workplace: normalized }, raw_message: normalized };
-    }
-
     // 월세 단계: 금액 사전 파싱
     if (current.deal_type === "monthly_rent" && !current.monthly_rent_max) {
       return this.parseMonthlyRentTurn(normalized);
+    }
+
+    if (current.preferred_region === undefined) {
+      return { raw: { preferred_region: normalized }, raw_message: normalized };
+    }
+
+    // 출퇴근 단계: workplace가 아직 없으면 그대로 담아 전송 (AI 서버가 매핑)
+    if (current.workplace === undefined) {
+      return { raw: { workplace: normalized }, raw_message: normalized };
     }
 
     return {
