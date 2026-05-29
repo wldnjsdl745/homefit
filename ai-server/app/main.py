@@ -38,7 +38,11 @@ def create_chat_service() -> ChatService:
     backend_client = (
         MockBackendClient()
         if settings.use_mock_backend
-        else HttpBackendClient(base_url=settings.backend_url, timeout_ms=settings.timeout_ms)
+        else HttpBackendClient(
+            base_url=settings.backend_url,
+            timeout_ms=settings.timeout_ms,
+            filter_timeout_ms=settings.backend_filter_timeout_ms,
+        )
     )
     llm_provider = _create_llm_provider(settings)
     return ChatService(
