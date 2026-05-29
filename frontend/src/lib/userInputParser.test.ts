@@ -33,12 +33,48 @@ describe("UserInputParser", () => {
     });
   });
 
+  it("parses monthly rent before commute", () => {
+    const parser = new UserInputParser();
+
+    expect(parser.parse({ budget_max: 200000000, deal_type: "monthly_rent" }, "500000")).toEqual({
+      raw: { monthly_rent_max: 500000 },
+    });
+  });
+
+  it("parses preferred region before commute", () => {
+    const parser = new UserInputParser();
+
+    expect(parser.parse({ budget_max: 200000000, deal_type: "jeonse" }, "강남구")).toEqual({
+      raw: { preferred_region: "강남구" },
+      raw_message: "강남구",
+    });
+  });
+
+  it("parses commute after preferred region is present", () => {
+    const parser = new UserInputParser();
+
+    expect(
+      parser.parse(
+        { budget_max: 200000000, deal_type: "jeonse", preferred_region: "강남구" },
+        "논현",
+      ),
+    ).toEqual({
+      raw: { workplace: "논현" },
+      raw_message: "논현",
+    });
+  });
+
   it("stores preference text after budget and deal type", () => {
     const parser = new UserInputParser();
 
     expect(
       parser.parse(
-        { budget_max: 200000000, deal_type: "jeonse", workplace: "상관없음" },
+        {
+          budget_max: 200000000,
+          deal_type: "jeonse",
+          preferred_region: "상관없음",
+          workplace: "상관없음",
+        },
         "역 가까운 곳",
       ),
     ).toEqual({

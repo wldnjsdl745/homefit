@@ -135,6 +135,35 @@ async def test_chat_service_skips_llm_when_structured_budget_is_present() -> Non
 
 
 @pytest.mark.asyncio
+async def test_chat_service_treats_bare_region_as_preferred_region_in_region_step() -> None:
+    from app.services.backend_client import MockBackendClient
+
+    service = ChatService(
+        backend_client=MockBackendClient(),
+        settings=Settings(AI_BACKEND_MODE="mock"),
+        llm_provider=TrackingLlmProvider(),
+    )
+
+    first = await service.handle(
+        ChatRequest(
+            session_id=None,
+            raw=Conditions(budget_max=200_000_000, deal_type="jeonse"),
+        )
+    )
+
+    response = await service.handle(
+        ChatRequest(
+            session_id=first.session_id,
+            raw=Conditions(),
+            raw_message="강남구",
+        )
+    )
+
+    assert response.state == "asking"
+    assert "직장이나 자주 가는 곳" in response.bot_messages[0].content
+
+
+@pytest.mark.asyncio
 async def test_chat_service_returns_result_when_text_contains_all_conditions() -> None:
     """한 문장에 필요한 조건이 모두 들어오면 중간 질문 없이 결과로 간다."""
     from app.services.backend_client import MockBackendClient

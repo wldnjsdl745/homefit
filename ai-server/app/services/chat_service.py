@@ -157,6 +157,10 @@ class ChatService:
                 contextual = self._contextual_no_preference(request.raw_message, merged)
                 merged = self.merge_service.merge(merged, contextual)
                 turn_raw = self.merge_service.merge(turn_raw, contextual)
+
+                contextual_region = self._contextual_preferred_region(request.raw_message, merged)
+                merged = self.merge_service.merge(merged, contextual_region)
+                turn_raw = self.merge_service.merge(turn_raw, contextual_region)
                 prior.messages.append(request.raw_message)
 
             merged = self._resolve_derived_fields(merged)
@@ -285,6 +289,16 @@ class ChatService:
             updates.setdefault("infrastructure_priorities", [])
 
         return Conditions(**updates)
+
+    def _contextual_preferred_region(self, raw_message: str, conditions: Conditions) -> Conditions:
+        if self.dialog_policy.next_step(conditions) != DialogStep.ASK_PREFERRED_REGION:
+            return Conditions()
+
+        match = _SEOUL_REGION_RE.search(raw_message)
+        if not match:
+            return Conditions()
+
+        return Conditions(preferred_region=match.group(1))
 
     def _extract_locally(self, raw_message: str) -> Conditions:
         text = raw_message.strip()

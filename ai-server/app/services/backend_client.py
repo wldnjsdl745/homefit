@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 from uuid import uuid4
 
 import httpx
@@ -38,9 +39,10 @@ class BackendClient(ABC):
 
 
 class HttpBackendClient(BackendClient):
-    def __init__(self, base_url: str, timeout_ms: int):
+    def __init__(self, base_url: str, timeout_ms: int, filter_timeout_ms: Optional[int] = None):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout_ms / 1000
+        self.filter_timeout = (filter_timeout_ms if filter_timeout_ms is not None else timeout_ms) / 1000
 
     async def upsert_conditions(
         self,
@@ -73,6 +75,7 @@ class HttpBackendClient(BackendClient):
         response = await self._post_with_retry(
             "/internal/filter",
             payload.model_dump(mode="json"),
+            timeout=self.filter_timeout,
         )
         try:
             return FilterRegionsResponse.model_validate(response.json())
@@ -85,12 +88,17 @@ class HttpBackendClient(BackendClient):
                 )
             ) from exc
 
-    async def _post_with_retry(self, path: str, payload: dict) -> httpx.Response:
+    async def _post_with_retry(
+        self,
+        path: str,
+        payload: dict,
+        timeout: Optional[float] = None,
+    ) -> httpx.Response:
         last_error: httpx.HTTPError | None = None
 
         for _ in range(2):
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with httpx.AsyncClient(timeout=timeout or self.timeout) as client:
                     response = await client.post(f"{self.base_url}{path}", json=payload)
                     if response.status_code >= 400:
                         try:
